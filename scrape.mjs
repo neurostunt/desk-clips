@@ -25,6 +25,8 @@ const PARDON =
   /pomilova|koga je pomilov|(pardon|clemency).{0,40}(serbia|vu[cč]i[cć]|vucic)|(serbia|vu[cč]i[cć]|vucic).{0,40}(pardon|clemency)/i;
 const OBSERVE =
   /evroposlan|evropsk\w* parlament|\boebs\b|\bosce\b|odihr|posmatra[cč]k|me[dđ]unarodn\w* (misij|posmatr|standard)|izborni organi|election observ|international (election )?observ|parliamentary assembly.{0,40}(osce|odihr|europe)|savet evrope|\bpace\b.{0,25}(serbia|election)|meps?.{0,30}(serbia|belgrade|observ)/i;
+const ELECT =
+  /studenti pobe[dđ]|ujedinjen\w* srbij|premijersk\w* list|kupovin\w* glas|kol.?cent|call.?cent(?:ar|er)|paralel\w* spisk|izborn\w* ti[sš]in|prigovor.{0,25}(\brik\b|\breik\b|izbor)|(\brik\b|\breik\b).{0,25}(prigovor|odluk|[zž]alb)|izborn\w* (prigovor|[zž]alb|kontrolor)|zapisnik.{0,25}(birali|materijal|primopredaj|izborn)|primopredaj\w* (izborn|materijal)|kontrola izbora|vote.?buy|election silence|ballot.{0,15}buy/i;
 const REPRESS =
   /represij|crn[aeo] list|ucenjivan|\bucen[ae]\b|javn\w* preduze[cć]|pozori[sš]t|glum[ci]|glumic|predstav[ae].{0,30}(zabran|otkaz|skandal|pritis|skidanj)|nastavnic|profesor.{0,40}(otkaz|pritis|smen|suspen|ucen|protest|repres|disciplin)|rektor.{0,25}(smen|pritis|otkaz)|dekan.{0,25}(smen|pritis)|fakultet.{0,35}(otkaz|pritis|smen|suspen|ucen|disciplin)|[sš]kol.{0,35}(otkaz|pritis|ucen|smen|disciplin)|nau[cč]n\w* (ustanov|institut)|[sš]trajk.{0,20}(prosvet|nastav|fakult)|bojkot.{0,20}(glum|predstav|kultur)|zabran.{0,25}predstav|smenjen.{0,25}(glum|rektor|dekan|nastav|profesor)|mobilizacij.{0,20}javn|glasaj ili|prinudn.{0,15}glas/i;
 
@@ -77,6 +79,7 @@ function relevant(item, src) {
   if (src.tier === "official") return true;
   if (PARDON.test(blob)) return true;
   if (OBSERVE.test(blob) && (src.tier === "rs-alt" || src.tier === "watch" || /srbij|serbia|vu[cč]i[cć]|beograd|belgrade/i.test(blob))) return true;
+  if (ELECT.test(blob) && (src.tier === "rs-alt" || src.tier === "watch" || /srbij|serbia|vu[cč]i[cć]/i.test(blob))) return true;
   if (REPRESS.test(blob)) return true;
   if (src.tier === "rs-alt" || src.tier === "watch") return RS.test(blob);
   return FOREIGN.test(blob);
@@ -214,6 +217,12 @@ async function main() {
     console.assert(relevant({ title: "Evroposlanici posmatraju izbore kao deo međunarodne misije", summary: "" }, { tier: "rs-alt" }), "ep");
     console.assert(relevant({ title: "OSCE/ODIHR election observation mission in Serbia", summary: "" }, { tier: "intl" }), "osce");
     console.assert(!relevant({ title: "OSCE mission to Moldova", summary: "" }, { tier: "intl" }), "osce-other");
+    console.assert(relevant({ title: "Ujedinjena Srbija objavila premijersku listu", summary: "" }, { tier: "rs-alt" }), "us");
+    console.assert(relevant({ title: "Studenti pobeđuju i Studentska lista", summary: "" }, { tier: "rs-alt" }), "sp");
+    console.assert(relevant({ title: "Kupovina glasova i kol centri", summary: "" }, { tier: "rs-alt" }), "buy");
+    console.assert(relevant({ title: "Paralelni spiskovi, prigovor RIK-u", summary: "" }, { tier: "rs-alt" }), "rik");
+    console.assert(relevant({ title: "Primopredaja izbornog materijala i zapisnik", summary: "" }, { tier: "rs-alt" }), "zapis");
+    console.assert(!relevant({ title: "Žalba na parking kaznu", summary: "" }, { tier: "rs-alt" }), "parking");
     console.assert(classify({ title: "Predsedništvo krije koga je Vučić pomilovao", summary: "" }) === "pardon");
     console.assert(classify({ title: "Radar: Oskar i Čvarak u Skaj prepisci Šarića", summary: "" }) === "sky");
     console.assert(skyHit("Edo Stefanović Skaj Markus"));
