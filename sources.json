@@ -31,11 +31,10 @@
     {"id": "detektor", "name": "Detektor", "tier": "region", "country": "BA", "rss": "https://detektor.ba/feed/"},
     {"id": "radio-sarajevo", "name": "Radio Sarajevo", "tier": "region", "country": "BA", "rss": "https://radiosarajevo.ba/rss"},
     {"id": "vijesti-me", "name": "Vijesti.me", "tier": "region", "country": "ME", "rss": "https://www.vijesti.me/rss"},
+    {"id": "monitor-me", "name": "Monitor", "tier": "region", "country": "ME", "rss": "https://www.monitor.co.me/feed/"},
     {"id": "delo", "name": "Delo", "tier": "region", "country": "SI", "rss": "https://www.delo.si/rss"},
     {"id": "meta-mk", "name": "Meta.mk", "tier": "region", "country": "MK", "rss": "https://meta.mk/feed/"},
     {"id": "prizma", "name": "Prizma", "tier": "region", "country": "MK", "rss": "https://prizma.mk/feed/"},
-    {"id": "koha", "name": "Koha", "tier": "region", "country": "XK", "rss": "https://www.koha.net/rss"},
-    {"id": "prishtina-insight", "name": "Prishtina Insight", "tier": "region", "country": "XK", "rss": "https://prishtinainsight.com/feed/"},
 
     {"id": "birn", "name": "Balkan Insight", "tier": "intl", "country": "INT", "rss": "https://balkaninsight.com/feed/"},
     {"id": "voa-sr", "name": "Glas Amerike", "tier": "intl", "country": "INT", "rss": ["https://www.glasamerike.net/api/ztkvrl-vomx-tpekpkr", "https://www.glasamerike.net/api/"]},
