@@ -90,4 +90,4 @@ Auto: N1/Nova turn off only if **two different sources** report a block/censorsh
 
 Local (if GitHub is down): `node scrape.mjs && node notify.mjs` with the same env names.
 
-Release: `npm run deploy` — gistenv section `desk-clips` → Actions secrets → GitHub release. Flags: `--pull`, `--secrets-only`, `--dry-run`. `GH_PAT` is for cron-job.org, not an Actions secret.
+Release: `npm run deploy` — gistenv section `desk-clips` → Actions secrets → GitHub release. Notes = commit subjects since the last tag. Flags: `--pull`, `--secrets-only`, `--dry-run`. `GH_PAT` is for cron-job.org, not an Actions secret.

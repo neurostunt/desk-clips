@@ -24,12 +24,18 @@ export function parseEnv(text) {
   return out;
 }
 
+function sortTags(tags) {
+  return [...tags]
+    .filter((t) => /^v\d+\.\d+\.\d+$/.test(t))
+    .sort((a, b) => {
+      const pa = a.slice(1).split(".").map(Number);
+      const pb = b.slice(1).split(".").map(Number);
+      return pa[0] - pb[0] || pa[1] - pb[1] || pa[2] - pb[2];
+    });
+}
+
 export function nextTag(tags, now = new Date()) {
-  const list = [...tags].filter((t) => /^v\d+\.\d+\.\d+$/.test(t)).sort((a, b) => {
-    const pa = a.slice(1).split(".").map(Number);
-    const pb = b.slice(1).split(".").map(Number);
-    return pa[0] - pb[0] || pa[1] - pb[1] || pa[2] - pb[2];
-  });
+  const list = sortTags(tags);
   if (!list.length) {
     const y = now.getUTCFullYear();
     const m = String(now.getUTCMonth() + 1).padStart(2, "0");
@@ -37,6 +43,19 @@ export function nextTag(tags, now = new Date()) {
   }
   const p = list.at(-1).slice(1).split(".").map(Number);
   return `v${p[0]}.${p[1]}.${p[2] + 1}`;
+}
+
+export function lastTag(tags) {
+  return sortTags(tags).at(-1) || null;
+}
+
+export function releaseNotes({ tag, prev, subjects }) {
+  const lines = [...subjects]
+    .map((s) => String(s).trim().split("\n")[0])
+    .filter((s) => s && !/^Merge /i.test(s));
+  const head = prev ? `## ${tag}\n\nSince ${prev}.` : `## ${tag}\n\nInitial release.`;
+  if (!lines.length) return `${head}\n`;
+  return `${head}\n\n${lines.map((s) => `- ${s}`).join("\n")}\n`;
 }
 
 function sh(cmd, args, opts = {}) {
@@ -84,18 +103,28 @@ function gitTags() {
   return out ? out.split("\n") : [];
 }
 
+function commitSubjects(prev) {
+  const args = prev ? ["log", `${prev}..HEAD`, "--format=%s"] : ["log", "HEAD", "--format=%s"];
+  const out = sh("git", args);
+  return out ? out.split("\n") : [];
+}
+
 function release(tag, dry) {
   const dirty = sh("git", ["status", "--porcelain"]);
   if (dirty) throw new Error("working tree dirty — commit first");
+  const prev = lastTag(gitTags());
+  const notes = releaseNotes({ tag, prev, subjects: commitSubjects(prev) });
   if (dry) {
-    console.log(`would release ${tag}`);
+    console.log(`would release ${tag}\n${notes}`);
     return;
   }
+  const notesFile = join(mkdtempSync(join(tmpdir(), "desk-clips-")), "NOTES.md");
+  writeFileSync(notesFile, notes);
   sh("git", ["push", "origin", "HEAD"]);
   sh("git", ["tag", tag]);
   sh("git", ["push", "origin", tag]);
-  sh("gh", ["release", "create", tag, "--generate-notes"]);
-  console.log(`release ${tag}`);
+  sh("gh", ["release", "create", tag, "--title", tag, "--notes-file", notesFile]);
+  console.log(`release ${tag}\n${notes}`);
 }
 
 function selftest() {
@@ -103,6 +132,15 @@ function selftest() {
   if (env.TELEGRAM_BOT_TOKEN !== "abc" || env.TELEGRAM_CHAT_ID !== "-100") throw new Error("parse");
   if (nextTag([], new Date("2026-10-17T00:00:00Z")) !== "v2026.10.0") throw new Error("first tag");
   if (nextTag(["v2026.10.0", "v2026.10.2"]) !== "v2026.10.3") throw new Error("bump");
+  if (lastTag(["v2026.10.0", "v2026.10.2"]) !== "v2026.10.2") throw new Error("last");
+  const n = releaseNotes({
+    tag: "v2026.10.1",
+    prev: "v2026.10.0",
+    subjects: ["Add deploy notes", "Merge branch 'x'", "Fix cron"],
+  });
+  if (!n.includes("## v2026.10.1") || !n.includes("Since v2026.10.0") || !n.includes("- Add deploy notes") || n.includes("Merge")) throw new Error("notes");
+  const first = releaseNotes({ tag: "v2026.10.0", prev: null, subjects: [] });
+  if (!first.includes("Initial release")) throw new Error("first notes");
   console.log("selftest ok");
 }
 
