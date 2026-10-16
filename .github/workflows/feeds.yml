@@ -1,0 +1,30 @@
+name: feeds
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            data/sent.json
+            data/history.jsonl
+          key: clips-state-${{ github.run_id }}
+          restore-keys: clips-state-
+      - name: scrape
+        run: node scrape.mjs
+        env:
+          HOURS: "12"
+      - name: telegram
+        run: node notify.mjs
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

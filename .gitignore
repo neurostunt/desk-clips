@@ -1,0 +1,5 @@
+data/*.json
+data/*.md
+data/*.jsonl
+node_modules/
+claude.md

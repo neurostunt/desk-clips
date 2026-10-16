@@ -1,0 +1,11 @@
+{
+  "name": "desk-clips",
+  "private": true,
+  "type": "module",
+  "description": "RSS digest to a Telegram channel",
+  "scripts": {
+    "digest": "node scrape.mjs",
+    "notify": "node notify.mjs",
+    "test": "node scrape.mjs --selftest && node notify.mjs --selftest"
+  }
+}

@@ -1,0 +1,260 @@
+#!/usr/bin/env node
+import { readFileSync, writeFileSync, mkdirSync, appendFileSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const ROOT = dirname(fileURLToPath(import.meta.url));
+const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const NOISE = /\/sport|\/zabava|\/showbiz|\/magazin|\/auto\/|evrolig|super lig/i;
+const RS =
+  /vu[cč]i[cć]|\bsns\b|izbori|izbora|izbore|izborn|vanredn|predizborn|parlamentarn|bira[cč]|studentsk|studenti|demonstracij|prosvjed|protest|gu[sš]enj|cenzur|alpac|united cloud|tatalov|[sš]ovljansk|nova\.rs|novars|novi sad|\bn1\b|n1info|studentska lista|izborna kra[dđ]|bira[cč]k/i;
+const FOREIGN =
+  /srbij|serbia|serbian|vu[cč]i[cć]|vucic|beograd|belgrade|novi ?sad|srpski|\bn1\b|nova\.rs|alpac|united (?:cloud|group)|studentska lista|student list|snap election|early (?:parliamentary )?election|media crackdown|press freedom|newsroom.{0,40}serbia|serbia.{0,40}(protest|riot|election|media|censor)|belgrade.{0,40}(protest|demonstrat|clash|riot|tear ?gas)|demonstracij.{0,40}beograd|beograd.{0,40}(demonstracij|protest|blokad|nered)/i;
+const PROTEST =
+  /studentsk|studenti|student list|studentska lista|protest|demonstracij|prosvjed|[sš]etnj|blokad|[cć]acilend|[cć]aci.?lend|nadstre[sš]nic|plenum|napadnut|suzavac|tear ?gas|riot police|[zž]andarm|nered|clash(?:es)? in belgrade|belgrade protest/i;
+const MEDIA =
+  /gu[sš]enj.{0,25}medij|cenzur|united cloud|alpac|otkaz.{0,30}novinar|novinar.{0,30}otkaz|press freedom|media crackdown|slobod[ae] (?:medij|štamp|stampe)|cms.{0,20}(admin|nalog|pristup)/i;
+const PRAISE =
+  /vu[cč]i[cć] poru[cč]|sns skup|miting sns|predizborni (skup|miting)|pobeda sns|svi kao jedan|stabiln(ost|a srbij)|ogromn[ae] podr[sš]k/i;
+
+function decode(s) {
+  return s
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .trim();
+}
+
+export function parseFeed(xml) {
+  const out = [];
+  const itemRe = /<item[\s\S]*?<\/item>/gi;
+  const entryRe = /<entry[\s\S]*?<\/entry>/gi;
+  let m;
+  while ((m = itemRe.exec(xml))) {
+    const b = m[0];
+    const title = decode((b.match(/<title[\s\S]*?<\/title>/i) || [""])[0].replace(/<\/?title[^>]*>/gi, ""));
+    const link = decode((b.match(/<link[\s\S]*?<\/link>/i) || [""])[0].replace(/<\/?link[^>]*>/gi, ""));
+    const date = decode((b.match(/<(?:pubDate|dc:date|updated)[\s\S]*?<\/(?:pubDate|dc:date|updated)>/i) || [""])[0].replace(/<\/?[^>]+>/g, ""));
+    const summary = decode((b.match(/<(?:description|content:encoded|summary)[\s\S]*?<\/(?:description|content:encoded|summary)>/i) || [""])[0].replace(/<\/?[^>]+>/g, "")).slice(0, 280);
+    if (title) out.push({ title, link, date, summary });
+  }
+  while ((m = entryRe.exec(xml))) {
+    const b = m[0];
+    const title = decode((b.match(/<title[\s\S]*?<\/title>/i) || [""])[0].replace(/<\/?title[^>]*>/gi, ""));
+    const href = (b.match(/<link[^>]+href=["']([^"']+)/i) || [, ""])[1];
+    const date = decode((b.match(/<(?:updated|published)[\s\S]*?<\/(?:updated|published)>/i) || [""])[0].replace(/<\/?[^>]+>/g, ""));
+    const summary = decode((b.match(/<(?:summary|content)[\s\S]*?<\/(?:summary|content)>/i) || [""])[0].replace(/<\/?[^>]+>/g, "")).slice(0, 280);
+    if (title) out.push({ title, link: href, date, summary });
+  }
+  return out;
+}
+
+function relevant(item, src) {
+  const blob = `${item.title} ${item.summary}`;
+  if (NOISE.test(`${blob} ${item.link}`)) return false;
+  if (src.tier === "official") return true;
+  if (src.tier === "rs-alt" || src.tier === "watch") return RS.test(blob);
+  return FOREIGN.test(blob);
+}
+
+export function classify(item) {
+  const blob = `${item.title} ${item.summary || ""}`;
+  if (PROTEST.test(blob)) return "protest";
+  if (MEDIA.test(blob)) return "media";
+  if (PRAISE.test(blob)) return "praise";
+  return "other";
+}
+
+function tally(items) {
+  const t = { n: items.length, protest: 0, praise: 0, media: 0, other: 0 };
+  for (const it of items) t[it.tag] = (t[it.tag] || 0) + 1;
+  return t;
+}
+
+export function detectAlerts({ watch, alt, errors, prev }) {
+  const alerts = [];
+  for (const id of ["n1-rs", "nova"]) {
+    const dead = errors.find((e) => e.id === id);
+    if (dead) alerts.push({ id: "feed_dead", src: id, msg: `src ${id} down (${dead.status || dead.err})` });
+  }
+  if (alt.protest >= 3 && watch.protest === 0 && watch.n > 0) {
+    alerts.push({ id: "gap_protest", msg: `set A P=0 · set B P=${alt.protest}` });
+  }
+  if ((alt.media || 0) >= 2 && (watch.media || 0) === 0 && watch.n > 0) {
+    alerts.push({ id: "gap_media", msg: `set A M=0 · set B M=${alt.media}` });
+  }
+  if (watch.n >= 8 && watch.praise >= 4 && watch.protest <= 1) {
+    alerts.push({ id: "skew_praise", msg: `set A R=${watch.praise}/${watch.n} P=${watch.protest}` });
+  }
+  if (prev?.watch?.protest >= 2 && watch.protest === 0 && alt.protest >= 2) {
+    alerts.push({ id: "drop_protest", msg: `set A P ${prev.watch.protest}→0 · set B P=${alt.protest}` });
+  }
+  return alerts;
+}
+
+async function fetchRss(url) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 15000);
+  try {
+    const r = await fetch(url, {
+      signal: ac.signal,
+      redirect: "follow",
+      headers: { "user-agent": UA, accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*" },
+    });
+    const text = await r.text();
+    const cf = /just a moment|challenge-platform/i.test(text);
+    return { ok: r.status === 200 && !cf, status: r.status, text, cf };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function pool(list, n, fn) {
+  const ret = new Array(list.length);
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(n, list.length) }, async () => {
+      while (i < list.length) {
+        const idx = i++;
+        ret[idx] = await fn(list[idx]);
+      }
+    }),
+  );
+  return ret;
+}
+
+function md(items, stats, alerts) {
+  const lines = [`# clips`, `_generated ${new Date().toISOString()}_`, ``, stats, ``];
+  if (alerts.length) {
+    lines.push(`## ALERTS`);
+    for (const a of alerts) lines.push(`- **${a.id}**: ${a.msg}`);
+    lines.push(``);
+  }
+  let last;
+  for (const it of items) {
+    if (it.source !== last) {
+      lines.push(`## ${it.sourceName} (${it.tier})`);
+      last = it.source;
+    }
+    const mark = it.tag === "protest" ? "P" : it.tag === "praise" ? "R" : it.tag === "media" ? "M" : "·";
+    lines.push(`- [${mark}] ${it.date || "?"} — [${it.title}](${it.link})`);
+  }
+  return lines.join("\n");
+}
+
+function lastHistory() {
+  const p = join(ROOT, "data/history.jsonl");
+  if (!existsSync(p)) return null;
+  const lines = readFileSync(p, "utf8").trim().split("\n").filter(Boolean);
+  if (!lines.length) return null;
+  try {
+    return JSON.parse(lines.at(-1));
+  } catch {
+    return null;
+  }
+}
+
+async function main() {
+  if (process.argv.includes("--selftest")) {
+    const xml = `<?xml version="1.0"?><rss><channel>
+      <item><title>Vučić u Beogradu</title><link>https://x/1</link><pubDate>Fri, 16 Oct 2026 12:00:00 GMT</pubDate></item>
+      <item><title>Zagreb tramvaj</title><link>https://x/2</link><pubDate>Fri, 16 Oct 2026 12:00:00 GMT</pubDate></item>
+    </channel></rss>`;
+    const items = parseFeed(xml);
+    console.assert(items.length === 2, items.length);
+    console.assert(relevant(items[0], { tier: "region-hr" }), "srb hit");
+    console.assert(!relevant(items[1], { tier: "region-hr" }), "zagreb miss");
+    console.assert(classify({ title: "Studentska šetnja u Nišu", summary: "" }) === "protest");
+    console.assert(classify({ title: "Studentska lista u Beogradu", summary: "" }) === "protest");
+    console.assert(classify({ title: "Demonstracije Beograd suzavac", summary: "" }) === "protest");
+    console.assert(classify({ title: "Belgrade protests, tear gas", summary: "" }) === "protest");
+    console.assert(classify({ title: "Gušenje medija, United Cloud CMS", summary: "" }) === "media");
+    console.assert(classify({ title: "Vučić poručio na SNS skupu", summary: "" }) === "praise");
+    console.assert(relevant({ title: "Demonstracije u Beogradu", summary: "" }, { tier: "region-hr" }), "bg demo");
+    console.assert(relevant({ title: "Serbia snap parliamentary elections", summary: "" }, { tier: "intl" }), "en elect");
+    console.assert(relevant({ title: "Media crackdown in Serbia newsrooms", summary: "" }, { tier: "intl" }), "en media");
+    const a = detectAlerts({
+      watch: { n: 10, protest: 0, praise: 5 },
+      alt: { n: 12, protest: 4, praise: 0 },
+      errors: [{ id: "nova", status: 403 }],
+      prev: { watch: { protest: 3 } },
+    });
+    console.assert(a.some((x) => x.id === "gap_protest"));
+    console.assert(a.some((x) => x.id === "skew_praise"));
+    console.assert(a.some((x) => x.id === "feed_dead"));
+    console.assert(a.some((x) => x.id === "drop_protest"));
+    console.log("selftest ok");
+    return;
+  }
+
+  const cfg = JSON.parse(readFileSync(join(ROOT, "sources.json"), "utf8"));
+  const hours = Number(process.env.HOURS || 72);
+  const cutoff = Date.now() - hours * 3600 * 1000;
+  const jobs = [];
+  for (const src of cfg.sources) {
+    const urls = Array.isArray(src.rss) ? src.rss : [src.rss];
+    for (const url of urls) jobs.push({ src, url });
+  }
+
+  const errors = [];
+  const items = [];
+  await pool(jobs, 8, async ({ src, url }) => {
+    try {
+      const { ok, status, text, cf } = await fetchRss(url);
+      if (!ok) {
+        errors.push({ id: src.id, status, cf: !!cf, url });
+        return;
+      }
+      for (const it of parseFeed(text)) {
+        if (!relevant(it, src)) continue;
+        const ts = it.date ? Date.parse(it.date) : NaN;
+        if (!Number.isNaN(ts) && ts < cutoff) continue;
+        const tag = classify(it);
+        items.push({ ...it, source: src.id, sourceName: src.name, tier: src.tier, country: src.country, ts: Number.isNaN(ts) ? 0 : ts, tag });
+      }
+    } catch (e) {
+      errors.push({ id: src.id, err: String(e.message || e).slice(0, 120), url });
+    }
+  });
+
+  items.sort((a, b) => b.ts - a.ts);
+  const seen = new Set();
+  const uniq = items.filter((it) => {
+    const k = it.link || it.title;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  const watch = tally(uniq.filter((i) => i.tier === "watch"));
+  const alt = tally(uniq.filter((i) => i.tier !== "watch" && i.tier !== "official"));
+  const alerts = detectAlerts({ watch, alt, errors, prev: lastHistory() });
+
+  mkdirSync(join(ROOT, "data"), { recursive: true });
+  const snap = { t: new Date().toISOString(), hours, watch, alt, alerts: alerts.map((a) => a.id) };
+  appendFileSync(join(ROOT, "data/history.jsonl"), JSON.stringify(snap) + "\n");
+  const payload = { generated: snap.t, hours, count: uniq.length, watch, alt, alerts, errors, items: uniq };
+  writeFileSync(join(ROOT, "data/digest.json"), JSON.stringify(payload, null, 2));
+  writeFileSync(join(ROOT, "data/alerts.json"), JSON.stringify({ generated: snap.t, alerts, watch, alt, errors }, null, 2));
+  const stats = `n=${uniq.length} a=${alerts.length} e=${errors.length} ${hours}h`;
+  writeFileSync(join(ROOT, "data/digest.md"), md(uniq, stats, alerts));
+  console.log(stats);
+  if (process.env.VERBOSE) {
+    for (const a of alerts) console.log("A", a.id);
+    for (const e of errors) console.log("e", e.id, e.status || "");
+  }
+  if (alerts.length && process.argv.includes("--fail-on-alert")) process.exit(2);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
