@@ -7,11 +7,11 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const NOISE = /\/sport|\/zabava|\/showbiz|\/magazin|\/auto\/|evrolig|super lig/i;
 const RS =
-  /vu[cč]i[cć]|\bsns\b|sns-[aeou]|napredn[aei] strank|izbori|izbora|izbore|izborn|vanredn|predizborn|parlamentarn|bira[cč]|birali[sš]t|glasaj|glasanj|posmatra[cč]|studentsk|studenti|demonstracij|prosvjed|protest|miting|gu[sš]enj|cenzur|alpac|alpak|united cloud|tatalov|[sš]ovljansk|nova\.rs|novars|\bnova s\b|novi sad|novog sada|novom sadu|\bn1\b|n1info|studentska lista|izborna kra[dđ]|nadstre[sš]nic|general[sš]tab|pomilova|odihr|nepravilnost|brutaln|prebij|pendrek|vodeni top|gumen|kordon|hapšenj/i;
+  /vu[cč]i[cć]|\bsns\b|sns-[aeou]|napredn[aei] strank|izbori|izbora|izbore|izborn|vanredn|predizborn|parlamentarn|bira[cč]|birali[sš]t|glasaj|glasanj|posmatra[cč]|studentsk|studenti|demonstracij|prosvjed|protest|miting|gu[sš]enj|cenzur|alpac|alpak|united cloud|tatalov|[sš]ovljansk|nova\.rs|novars|\bnova s\b|novi sad|novog sada|novom sadu|\bn1\b|n1info|studentska lista|izborna kra[dđ]|nadstre[sš]nic|general[sš]tab|pomilova|odihr|nepravilnost|brutaln|prebij|pendrek|vodeni top|gumen|kordon|hapšenj|vanredno stanje|policijski čas|izborni turiz|fiktivn\w* bira|bira[cč]ki (spisak|odbor)|privo[dđ]en|pretres|šok bomb|gašenje internet|blokada mrež|1\. ?novembar|[zž]elezni[cč]k\w* stanic|u blokadi/i;
 const FOREIGN =
-  /srbij|serbia|serbian|vu[cč]i[cć]|vucic|beograd|belgrade|novi ?sad|novog sada|novom sadu|srpski|\bn1\b|nova\.rs|alpac|alpak|united (?:cloud|group)|studentska lista|student list|snap election|early (?:parliamentary )?election|election night|polling station|media crackdown|press freedom|newsroom.{0,40}serbia|serbia.{0,40}(protest|riot|election|media|censor)|belgrade.{0,40}(protest|demonstrat|clash|riot|tear ?gas)|demonstracij.{0,40}beograd|beograd.{0,40}(demonstracij|protest|blokad|nered)|canopy|railway station.{0,20}novi|pardon.{0,30}serbia|serbia.{0,30}pardon/i;
+  /srbij|serbia|serbian|vu[cč]i[cć]|vucic|beograd|belgrade|novi ?sad|novog sada|novom sadu|srpski|\bn1\b|nova\.rs|alpac|alpak|united (?:cloud|group)|studentska lista|student list|snap election|early (?:parliamentary )?election|election night|polling station|media crackdown|press freedom|newsroom.{0,40}serbia|serbia.{0,40}(protest|riot|election|media|censor)|belgrade.{0,40}(protest|demonstrat|clash|riot|tear ?gas)|demonstracij.{0,40}beograd|beograd.{0,40}(demonstracij|protest|blokad|nered)|canopy|railway station.{0,20}novi|pardon.{0,30}serbia|serbia.{0,30}pardon|state of emergency.{0,20}serbia|internet (?:shutdown|blackout).{0,20}serbia|curfew.{0,20}serbia/i;
 const PROTEST =
-  /studentsk|studenti|student list|studentska lista|protest|demonstracij|prosvjed|[sš]etnj|blokad|[cć]acilend|[cć]aci.?lend|nadstre[sš]nic|plenum|napadnut|odguri|suzavac|tear ?gas|riot police|[zž]andarm|nered|miting|batina|obezbe[dđ]enj|clash(?:es)? in belgrade|belgrade protest|izborn[aeo].{0,12}(dan|no[cć]|nepravil)|brutaln|prebij|pendrek|vodeni top|gumen|kordon|hapšenj/i;
+  /studentsk|studenti|student list|studentska lista|protest|demonstracij|prosvjed|[sš]etnj|blokad|[cć]acilend|[cć]aci.?lend|nadstre[sš]nic|plenum|napadnut|odguri|suzavac|tear ?gas|riot police|[zž]andarm|nered|miting|batina|obezbe[dđ]enj|clash(?:es)? in belgrade|belgrade protest|izborn[aeo].{0,12}(dan|no[cć]|nepravil)|brutaln|prebij|pendrek|vodeni top|gumen|kordon|hapšenj|vanredno stanje|policijski čas|šok bomb|privo[dđ]en|u blokadi|[zž]elezni[cč]k\w* stanic/i;
 const MEDIA =
   /gu[sš]enj.{0,25}medij|cenzur|united cloud|alpac|alpak|otkaz.{0,30}novinar|novinar.{0,30}(otkaz|spre[cč]|napad|pretnj|incident)|spre[cč]en.{0,20}novinar|press freedom|media crackdown|slobod[aeu] medij|redakcij|ure[dđ]iva[cč]k|ultimatu|otpremnin|akreditacij|\brem\b|nuns/i;
 const PRAISE =
@@ -202,6 +202,10 @@ async function main() {
     console.assert(relevant({ title: "Crna lista glumaca u Narodnom pozorištu", summary: "" }, { tier: "rs-alt" }), "theatre");
     console.assert(relevant({ title: "Ucenjivanje glasanjem u javnom preduzeću", summary: "" }, { tier: "rs-alt" }), "jp");
     console.assert(relevant({ title: "Profesor smenjen zbog podrške studentima", summary: "" }, { tier: "rs-alt" }), "prof");
+    console.assert(relevant({ title: "Najavljeno vanredno stanje i policijski čas", summary: "" }, { tier: "rs-alt" }), "curfew");
+    console.assert(relevant({ title: "Fiktivni birači i izborni turizam", summary: "" }, { tier: "rs-alt" }), "fraud");
+    console.assert(relevant({ title: "Gašenje interneta i blokada mreže", summary: "" }, { tier: "rs-alt" }), "net");
+    console.assert(relevant({ title: "Fakultet i dalje u blokadi", summary: "" }, { tier: "rs-alt" }), "blokada");
     console.assert(classify({ title: "Predsedništvo krije koga je Vučić pomilovao", summary: "" }) === "pardon");
     console.assert(classify({ title: "Radar: Oskar i Čvarak u Skaj prepisci Šarića", summary: "" }) === "sky");
     console.assert(skyHit("Edo Stefanović Skaj Markus"));
