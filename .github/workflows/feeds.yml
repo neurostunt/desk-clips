@@ -1,7 +1,7 @@
 name: feeds
 on:
   schedule:
-    - cron: "13,33,53 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 jobs:
   run:
