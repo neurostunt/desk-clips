@@ -3,3 +3,4 @@ data/*.md
 data/*.jsonl
 node_modules/
 claude.md
+.env
