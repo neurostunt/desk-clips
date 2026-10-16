@@ -6,7 +6,8 @@ import { loadDisabled, saveDisabled, addDrop, undrop, parseCommand, buildDropTex
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SENT = join(ROOT, "data/sent.json");
-const MAX_NEWS = Number(process.env.MAX_NEWS || 20);
+const MAX_NEWS = Number(process.env.MAX_NEWS || 32);
+const PER_SRC = Number(process.env.PER_SRC || 2);
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -33,24 +34,72 @@ function normTitle(t) {
     .toLowerCase();
 }
 
-export function buildMessages(digest, sent) {
-  const blocked = new Set(digest.disabled || []);
+function bucket(it) {
+  if (it.tier === "region" || it.tier === "region-hr") return "region";
+  if (it.tier === "intl") return "intl";
+  return "rs";
+}
+
+export function pickFresh(items, sent, blocked, max = MAX_NEWS, perSrc = PER_SRC) {
   const seenTitle = new Set();
-  const fresh = [];
-  for (const it of digest.items || []) {
+  const cands = [];
+  for (const it of items || []) {
     if (!it.link || sent.has(it.link) || blocked.has(it.source)) continue;
     const nt = normTitle(it.title || "");
     if (!nt || seenTitle.has(nt)) continue;
     seenTitle.add(nt);
-    fresh.push(it);
-    if (fresh.length >= MAX_NEWS) break;
+    cands.push(it);
   }
+  const bins = { rs: [], region: [], intl: [] };
+  for (const it of cands) bins[bucket(it)].push(it);
+  const nSrc = Object.create(null);
+  const used = new Set();
+  const out = [];
+  const order = ["rs", "region", "intl"];
+  let cap = perSrc;
+  while (out.length < max && used.size < cands.length) {
+    let added = 0;
+    for (const k of order) {
+      const it = bins[k].find((x) => !used.has(x.link) && (nSrc[x.source] || 0) < cap);
+      if (!it) continue;
+      used.add(it.link);
+      nSrc[it.source] = (nSrc[it.source] || 0) + 1;
+      out.push(it);
+      added++;
+      if (out.length >= max) break;
+    }
+    if (!added) cap++;
+  }
+  return out;
+}
+
+function chunkLines(lines, max = 3500) {
+  const msgs = [];
+  let buf = [];
+  let n = 0;
+  for (const line of lines) {
+    if (buf.length && n + line.length + 1 > max) {
+      msgs.push(buf.join("\n"));
+      buf = [];
+      n = 0;
+    }
+    buf.push(line);
+    n += line.length + 1;
+  }
+  if (buf.length) msgs.push(buf.join("\n"));
+  return msgs;
+}
+
+export function buildMessages(digest, sent) {
+  const blocked = new Set(digest.disabled || []);
+  const fresh = pickFresh(digest.items, sent, blocked);
   const msgs = [];
   for (const d of digest.drops || []) {
     msgs.push(buildDropText(d, labelsFor(d.ids)));
   }
   if (fresh.length) {
-    msgs.push(fresh.map((it) => `${esc(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`).join("\n"));
+    const lines = fresh.map((it) => `${esc(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`);
+    msgs.push(...chunkLines(lines));
   }
   return { msgs, fresh };
 }
@@ -137,6 +186,19 @@ async function main() {
     console.assert(fresh.length === 1 && fresh[0].source === "vreme", fresh);
     console.assert(msgs[0].includes("Nova.rs") && msgs[0].includes("https://d/1"), msgs[0]);
     console.assert(msgs[1].includes("Vreme:"), msgs[1]);
+    const mix = pickFresh(
+      [
+        ...[1, 2, 3, 4, 5].map((i) => ({ source: "danas", sourceName: "Danas", tier: "rs-alt", title: `RS ${i}`, link: `https://d/${i}` })),
+        { source: "index-hr", sourceName: "Index.hr", tier: "region-hr", title: "HR", link: "https://h/1" },
+        { source: "bbc-sr", sourceName: "BBC Serbian", tier: "intl", title: "EU", link: "https://b/1" },
+      ],
+      new Set(),
+      new Set(),
+      6,
+      2,
+    );
+    if (mix.slice(0, 4).filter((x) => x.source === "danas").length !== 2) throw new Error("per-src");
+    if (!mix.some((x) => x.source === "index-hr") || !mix.some((x) => x.source === "bbc-sr")) throw new Error("mix");
     console.log("selftest ok");
     return;
   }

@@ -24,7 +24,7 @@ jobs:
       - name: scrape
         run: node scrape.mjs
         env:
-          HOURS: "12"
+          HOURS: "24"
       - name: telegram
         run: node notify.mjs
         env:
