@@ -51,9 +51,19 @@ Ako je prazno: još jednom `ping` u kanal, pa osveži tu adresu.
 | `TELEGRAM_BOT_TOKEN` | token od BotFather |
 | `TELEGRAM_CHAT_ID` | broj kanala, npr. `-100123…` |
 
-4. Tab **Actions** → **feeds** → **Run workflow**.
+4. Tab **Actions** → **feeds** → **Run workflow** (provera da bot radi).
 
-Ako prođe zeleno, u kanalu se pojave linkovi. Dalje ide samo, otprilike svakih 20 min (ponekad kasni).
+Sat ne drži GitHub. Koristimo **[cron-job.org](https://cron-job.org)** (besplatno). On svakih 20 min zove isti **Run workflow**.
+
+1. GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained** → **Generate new token**.
+2. Ime npr. `desk-clips-cron`. Rok 90 dana. Samo ovaj repo. Permission **Actions: Read and write**. Sačuvaj token (jednom se vidi).
+3. Nalog na [cron-job.org](https://cron-job.org/en/) → **Create cronjob**.
+4. URL (POST):  
+   `https://api.github.com/repos/neurostunt/desk-clips/actions/workflows/feeds.yml/dispatches`
+5. Advanced: method **POST**. Headers: `Accept: application/vnd.github+json`, `Authorization: Bearer TOKEN`, `Content-Type: application/json`. Body: `{"ref":"main"}`.
+6. Interval 20 min, timezone Belgrade. **Test Run** mora **204**. Job ostavi uključen.
+
+Kad token istekne, napravi novi i zameni `Bearer` u cron-job.org. Token ne ide u chat ni u ovaj README.
 
 ### 5. Pošalji ljudima
 
