@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SENT = join(ROOT, "data/sent.json");
-const MAX_NEWS = Number(process.env.MAX_NEWS || 12);
+const MAX_NEWS = Number(process.env.MAX_NEWS || 20);
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -24,24 +24,28 @@ function saveSent(set) {
   writeFileSync(SENT, JSON.stringify({ links: [...set].slice(-800) }));
 }
 
+function normTitle(t) {
+  return String(t)
+    .replace(/\(FOTO\)|\(VIDEO\)|\(FOTO\/VIDEO\)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 export function buildMessages(digest, sent) {
-  const msgs = [];
-  const { alerts = [], watch = {}, alt = {}, items = [], generated } = digest;
-  const head = `clips · ${generated?.slice(11, 16) || "?"}\nA P${watch.protest || 0}/R${watch.praise || 0}/M${watch.media || 0} · B P${alt.protest || 0}/R${alt.praise || 0}/M${alt.media || 0}`;
-
-  if (alerts.length) {
-    msgs.push(`note\n${head}\n${alerts.map((a) => `• ${esc(a.msg)}`).join("\n")}`);
+  const seenTitle = new Set();
+  const fresh = [];
+  for (const it of digest.items || []) {
+    if (!it.link || sent.has(it.link)) continue;
+    const nt = normTitle(it.title || "");
+    if (!nt || seenTitle.has(nt)) continue;
+    seenTitle.add(nt);
+    fresh.push(it);
+    if (fresh.length >= MAX_NEWS) break;
   }
-
-  const fresh = items.filter((it) => /^(protest|media|sky|pardon)$/.test(it.tag) && it.link && !sent.has(it.link)).slice(0, MAX_NEWS);
-  if (fresh.length) {
-    const lines = fresh.map((it) => {
-      const mark = it.tag === "protest" ? "P" : it.tag === "sky" ? "S" : it.tag === "pardon" ? "F" : "M";
-      return `[${mark}] ${esc(it.sourceName)}: <a href="${esc(it.link)}">${esc(it.title.slice(0, 160))}</a>`;
-    });
-    msgs.push(`${alerts.length ? "Novo P/M\n" : head + "\n"}${lines.join("\n")}`);
-  }
-  return { msgs, fresh };
+  if (!fresh.length) return { msgs: [], fresh };
+  const lines = fresh.map((it) => `${esc(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`);
+  return { msgs: [lines.join("\n")], fresh };
 }
 
 async function sendTelegram(text) {
@@ -65,15 +69,16 @@ async function main() {
   if (process.argv.includes("--selftest")) {
     const { msgs, fresh } = buildMessages(
       {
-        generated: "2026-10-16T18:00:00.000Z",
-        watch: { protest: 0, praise: 4, media: 0 },
-        alt: { protest: 5, praise: 0, media: 2 },
-        alerts: [{ msg: "cenzura-rupa: alt 5 protest" }],
-        items: [{ tag: "protest", sourceName: "Vreme", title: "Studenti Beograd", link: "https://x/1" }],
+        items: [
+          { tag: "other", sourceName: "Vreme", title: "Studenti Beograd", link: "https://x/1" },
+          { tag: "protest", sourceName: "Danas", title: "(FOTO) Studenti Beograd", link: "https://x/2" },
+        ],
       },
       new Set(),
     );
-    console.assert(msgs.length === 2 && fresh.length === 1, msgs);
+    console.assert(fresh.length === 1, fresh.length);
+    console.assert(msgs.length === 1 && msgs[0].includes("Vreme:") && msgs[0].includes("<a href="), msgs[0]);
+    console.assert(!msgs[0].includes("[P]"), msgs[0]);
     console.log("selftest ok");
     return;
   }
@@ -88,13 +93,13 @@ async function main() {
   const sent = loadSent();
   const { msgs, fresh } = buildMessages(digest, sent);
   if (!msgs.length) {
-    console.log("nema novih P/M ni alerta");
+    console.log("nema novih");
     return;
   }
   for (const m of msgs) await sendTelegram(m);
   for (const it of fresh) sent.add(it.link);
   saveSent(sent);
-  console.log(`poslato ${msgs.length} poruka, ${fresh.length} vesti`);
+  console.log(`poslato ${fresh.length}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
