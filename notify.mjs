@@ -13,6 +13,10 @@ function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function srcLabel(s) {
+  return esc(s).replace(/\./g, ".\u200b");
+}
+
 function loadSent() {
   try {
     return new Set(JSON.parse(readFileSync(SENT, "utf8")).links || []);
@@ -98,7 +102,7 @@ export function buildMessages(digest, sent) {
     msgs.push(buildDropText(d, labelsFor(d.ids)));
   }
   if (fresh.length) {
-    const lines = fresh.map((it) => `${esc(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`);
+    const lines = fresh.map((it) => `${srcLabel(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`);
     msgs.push(...chunkLines(lines));
   }
   return { msgs, fresh };
@@ -199,6 +203,11 @@ async function main() {
     );
     if (mix.slice(0, 4).filter((x) => x.source === "danas").length !== 2) throw new Error("per-src");
     if (!mix.some((x) => x.source === "index-hr") || !mix.some((x) => x.source === "bbc-sr")) throw new Error("mix");
+    const { msgs: m2 } = buildMessages(
+      { items: [{ source: "nova", sourceName: "Nova.rs", title: "T", link: "https://n/2" }] },
+      new Set(),
+    );
+    if (!m2[0].includes("Nova.\u200brs:")) throw new Error("src zwsp");
     console.log("selftest ok");
     return;
   }
