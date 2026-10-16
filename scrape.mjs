@@ -172,16 +172,19 @@ function md(items, stats, alerts) {
   return lines.join("\n");
 }
 
-function lastHistory() {
+function recentHistory(n = 48) {
   const p = join(ROOT, "data/history.jsonl");
-  if (!existsSync(p)) return null;
+  if (!existsSync(p)) return [];
   const lines = readFileSync(p, "utf8").trim().split("\n").filter(Boolean);
-  if (!lines.length) return null;
-  try {
-    return JSON.parse(lines.at(-1));
-  } catch {
-    return null;
+  const out = [];
+  for (const line of lines.slice(-n)) {
+    try {
+      out.push(JSON.parse(line));
+    } catch {
+      /* skip bad line */
+    }
   }
+  return out;
 }
 
 async function main() {
@@ -295,13 +298,14 @@ async function main() {
 
   const watch = tally(uniq.filter((i) => i.tier === "watch"));
   const alt = tally(uniq.filter((i) => i.tier !== "watch" && i.tier !== "official"));
-  const prev = lastHistory();
+  const hist = recentHistory();
+  const prev = hist.at(-1) || null;
   const alerts = detectAlerts({ watch, alt, errors, prev });
   const deadNow = [...new Set(errors.filter((e) => e.id === "n1-rs" || e.id === "nova").map((e) => e.id))];
   const drops = [];
-  for (const hit of [...detectHardKill(uniq), ...detectRepeatDead(errors, prev?.dead)]) {
+  for (const hit of [...detectHardKill(uniq), ...detectRepeatDead(errors, hist)]) {
     const ids = hit.id === "nova" ? ALIAS.nova : ALIAS.n1;
-    const { state, added } = addDrop(disabled, ids, hit.via === "rss" ? "rss-2x" : "hard-kill", hit.via);
+    const { state, added } = addDrop(disabled, ids, hit.via === "rss" ? "rss-8h" : "hard-kill", hit.via);
     if (!added.length) continue;
     disabled = state;
     drops.push({ ids: added, via: hit.via, items: (hit.items || []).map((i) => ({ sourceName: i.sourceName, title: i.title, link: i.link })) });

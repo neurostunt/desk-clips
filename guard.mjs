@@ -71,12 +71,21 @@ export function detectHardKill(items) {
   return hits;
 }
 
-export function detectRepeatDead(errors, prevDead) {
-  const now = new Set((errors || []).filter((e) => e.id === "n1-rs" || e.id === "nova").map((e) => e.id));
-  const prev = new Set(prevDead || []);
+// ponytail: 8h covers overnight + 30min cadence; two empty/failing runs are not an outage
+export const RSS_DEAD_MS = 8 * 3600 * 1000;
+
+export function detectRepeatDead(errors, history, now = Date.now()) {
+  const deadNow = new Set((errors || []).filter((e) => e.id === "n1-rs" || e.id === "nova").map((e) => e.id));
+  const snaps = history || [];
   const hits = [];
-  for (const id of now) {
-    if (prev.has(id)) hits.push({ id, items: [], via: "rss" });
+  for (const id of deadNow) {
+    let streakStart = now;
+    for (let i = snaps.length - 1; i >= 0; i--) {
+      if (!(snaps[i].dead || []).includes(id)) break;
+      const ts = Date.parse(snaps[i].t);
+      if (!Number.isNaN(ts)) streakStart = ts;
+    }
+    if (now - streakStart >= RSS_DEAD_MS) hits.push({ id, items: [], via: "rss" });
   }
   return hits;
 }
@@ -100,7 +109,7 @@ export function labelsFor(ids) {
 
 export function buildDropText(hit, names) {
   const label = names.join(", ");
-  const why = hit.via === "rss" ? "RSS 2× zaredom ne radi." : "Više izvora javlja blokadu / cenzuru / prestanak izveštavanja.";
+  const why = hit.via === "rss" ? "RSS ne radi već 8 sati zaredom." : "Više izvora javlja blokadu / cenzuru / prestanak izveštavanja.";
   const lines = [`Više ne pratimo: ${label}`, why];
   for (const it of (hit.items || []).slice(0, 8)) {
     const title = String(it.title || "").slice(0, 160);
@@ -116,8 +125,14 @@ if (process.argv[1] && process.argv.includes("--selftest")) {
   const k = detectHardKill([a, b, quit]);
   console.assert(k.length === 1 && k[0].id === "nova", k);
   console.assert(detectHardKill([a, quit]).length === 0);
-  console.assert(detectRepeatDead([{ id: "n1-rs" }], ["n1-rs"]).length === 1);
-  console.assert(detectRepeatDead([{ id: "n1-rs" }], []).length === 0);
+  const t0 = "2026-10-16T16:00:00.000Z";
+  const t1 = "2026-10-16T16:30:00.000Z";
+  const t8 = "2026-10-17T00:00:00.000Z";
+  const now8 = Date.parse(t8);
+  console.assert(detectRepeatDead([{ id: "n1-rs" }], [{ t: t0, dead: ["n1-rs"] }], Date.parse(t1)).length === 0);
+  console.assert(detectRepeatDead([{ id: "n1-rs" }], [{ t: t0, dead: ["n1-rs"] }], now8).length === 1);
+  console.assert(detectRepeatDead([{ id: "n1-rs" }], [{ t: t0, dead: ["n1-rs"] }, { t: t1, dead: [] }], now8).length === 0);
+  console.assert(detectRepeatDead([{ id: "n1-rs" }], [], now8).length === 0);
   console.assert(parseCommand("/drop n1").ids[0] === "n1-rs");
   console.assert(parseCommand("/drop nova").ids.includes("radar"));
   console.assert(parseCommand("/status").cmd === "status");
