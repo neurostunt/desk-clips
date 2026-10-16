@@ -6,6 +6,7 @@
   "scripts": {
     "digest": "node scrape.mjs",
     "notify": "node notify.mjs",
-    "test": "node scrape.mjs --selftest && node notify.mjs --selftest && node guard.mjs --selftest"
+    "deploy": "node deploy.mjs",
+    "test": "node scrape.mjs --selftest && node notify.mjs --selftest && node guard.mjs --selftest && node deploy.mjs --selftest"
   }
 }
