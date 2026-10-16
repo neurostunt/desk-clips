@@ -8,6 +8,7 @@
     {"id": "cenzolovka", "name": "Cenzolovka", "tier": "rs-alt", "country": "RS", "rss": "https://www.cenzolovka.rs/feed/", "priRss": ["https://www.cenzolovka.rs/tag/izbori/feed/"]},
     {"id": "vreme", "name": "Vreme", "tier": "rs-alt", "country": "RS", "rss": "https://vreme.com/feed/", "priRss": ["https://vreme.com/tag/izbori-2026/feed/"]},
     {"id": "danas", "name": "Danas", "tier": "rs-alt", "country": "RS", "rss": "https://www.danas.rs/feed/", "priRss": ["https://www.danas.rs/rubrika/vesti/politika/izbori26/feed/"]},
+    {"id": "nedeljnik", "name": "Nedeljnik", "tier": "rs-alt", "country": "RS", "rss": "https://www.nedeljnik.rs/feed/", "priRss": ["https://www.nedeljnik.rs/tag/izbori-2026/feed/"]},
     {"id": "autonomija", "name": "Autonomija", "tier": "rs-alt", "country": "RS", "rss": "https://www.autonomija.info/feed/", "priRss": ["https://www.autonomija.info/tag/izbori/feed/"]},
     {"id": "voice", "name": "VOICE", "tier": "rs-alt", "country": "RS", "rss": "https://voice.org.rs/feed/", "priRss": ["https://voice.org.rs/tag/izbori/feed/"]},
     {"id": "masina", "name": "Mašina", "tier": "rs-alt", "country": "RS", "rss": "https://www.masina.rs/feed/", "priRss": ["https://www.masina.rs/tag/izbori-2026/feed/"]},

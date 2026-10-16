@@ -23,6 +23,8 @@ const SKYPOL =
   /\boskar\b|[cč]varak|\bedo\b|markus|stefanovi[cć]|parezanovi[cć]|[sš]ari[cć]|belivuk|jovanjica|pandrc|uliks/i;
 const PARDON =
   /pomilova|koga je pomilov|(pardon|clemency).{0,40}(serbia|vu[cč]i[cć]|vucic)|(serbia|vu[cč]i[cć]|vucic).{0,40}(pardon|clemency)/i;
+const OBSERVE =
+  /evroposlan|evropsk\w* parlament|\boebs\b|\bosce\b|odihr|posmatra[cč]k|me[dđ]unarodn\w* (misij|posmatr|standard)|izborni organi|election observ|international (election )?observ|parliamentary assembly.{0,40}(osce|odihr|europe)|savet evrope|\bpace\b.{0,25}(serbia|election)|meps?.{0,30}(serbia|belgrade|observ)/i;
 const REPRESS =
   /represij|crn[aeo] list|ucenjivan|\bucen[ae]\b|javn\w* preduze[cć]|pozori[sš]t|glum[ci]|glumic|predstav[ae].{0,30}(zabran|otkaz|skandal|pritis|skidanj)|nastavnic|profesor.{0,40}(otkaz|pritis|smen|suspen|ucen|protest|repres|disciplin)|rektor.{0,25}(smen|pritis|otkaz)|dekan.{0,25}(smen|pritis)|fakultet.{0,35}(otkaz|pritis|smen|suspen|ucen|disciplin)|[sš]kol.{0,35}(otkaz|pritis|ucen|smen|disciplin)|nau[cč]n\w* (ustanov|institut)|[sš]trajk.{0,20}(prosvet|nastav|fakult)|bojkot.{0,20}(glum|predstav|kultur)|zabran.{0,25}predstav|smenjen.{0,25}(glum|rektor|dekan|nastav|profesor)|mobilizacij.{0,20}javn|glasaj ili|prinudn.{0,15}glas/i;
 
@@ -74,6 +76,7 @@ function relevant(item, src) {
   if (skyHit(blob)) return true;
   if (src.tier === "official") return true;
   if (PARDON.test(blob)) return true;
+  if (OBSERVE.test(blob) && (src.tier === "rs-alt" || src.tier === "watch" || /srbij|serbia|vu[cč]i[cć]|beograd|belgrade/i.test(blob))) return true;
   if (REPRESS.test(blob)) return true;
   if (src.tier === "rs-alt" || src.tier === "watch") return RS.test(blob);
   return FOREIGN.test(blob);
@@ -208,6 +211,9 @@ async function main() {
     console.assert(relevant({ title: "Fiktivni birači i izborni turizam", summary: "" }, { tier: "rs-alt" }), "fraud");
     console.assert(relevant({ title: "Gašenje interneta i blokada mreže", summary: "" }, { tier: "rs-alt" }), "net");
     console.assert(relevant({ title: "Fakultet i dalje u blokadi", summary: "" }, { tier: "rs-alt" }), "blokada");
+    console.assert(relevant({ title: "Evroposlanici posmatraju izbore kao deo međunarodne misije", summary: "" }, { tier: "rs-alt" }), "ep");
+    console.assert(relevant({ title: "OSCE/ODIHR election observation mission in Serbia", summary: "" }, { tier: "intl" }), "osce");
+    console.assert(!relevant({ title: "OSCE mission to Moldova", summary: "" }, { tier: "intl" }), "osce-other");
     console.assert(classify({ title: "Predsedništvo krije koga je Vučić pomilovao", summary: "" }) === "pardon");
     console.assert(classify({ title: "Radar: Oskar i Čvarak u Skaj prepisci Šarića", summary: "" }) === "sky");
     console.assert(skyHit("Edo Stefanović Skaj Markus"));
