@@ -21,6 +21,8 @@ const SKYPOL =
   /\boskar\b|[cč]varak|\bedo\b|markus|stefanovi[cć]|parezanovi[cć]|[sš]ari[cć]|belivuk|jovanjica|pandrc|uliks/i;
 const PARDON =
   /pomilova|koga je pomilov|(pardon|clemency).{0,40}(serbia|vu[cč]i[cć]|vucic)|(serbia|vu[cč]i[cć]|vucic).{0,40}(pardon|clemency)/i;
+const REPRESS =
+  /represij|crn[aeo] list|ucenjivan|\bucen[ae]\b|javn\w* preduze[cć]|pozori[sš]t|glum[ci]|glumic|predstav[ae].{0,30}(zabran|otkaz|skandal|pritis|skidanj)|nastavnic|profesor.{0,40}(otkaz|pritis|smen|suspen|ucen|protest|repres|disciplin)|rektor.{0,25}(smen|pritis|otkaz)|dekan.{0,25}(smen|pritis)|fakultet.{0,35}(otkaz|pritis|smen|suspen|ucen|disciplin)|[sš]kol.{0,35}(otkaz|pritis|ucen|smen|disciplin)|nau[cč]n\w* (ustanov|institut)|[sš]trajk.{0,20}(prosvet|nastav|fakult)|bojkot.{0,20}(glum|predstav|kultur)|zabran.{0,25}predstav|smenjen.{0,25}(glum|rektor|dekan|nastav|profesor)|mobilizacij.{0,20}javn|glasaj ili|prinudn.{0,15}glas/i;
 
 function decode(s) {
   return s
@@ -70,6 +72,7 @@ function relevant(item, src) {
   if (skyHit(blob)) return true;
   if (src.tier === "official") return true;
   if (PARDON.test(blob)) return true;
+  if (REPRESS.test(blob)) return true;
   if (src.tier === "rs-alt" || src.tier === "watch") return RS.test(blob);
   return FOREIGN.test(blob);
 }
@@ -196,6 +199,9 @@ async function main() {
     console.assert(relevant({ title: "Pomilovani osumnjičeni za pad nadstrešnice i Generalštab", summary: "" }, { tier: "rs-alt" }), "canopy");
     console.assert(classify({ title: "Novinari sprečeni da izveštavaju sa skupova SNS-a", summary: "" }) === "media");
     console.assert(classify({ title: "Miting SNS-a u Novom Sadu", summary: "" }) === "protest");
+    console.assert(relevant({ title: "Crna lista glumaca u Narodnom pozorištu", summary: "" }, { tier: "rs-alt" }), "theatre");
+    console.assert(relevant({ title: "Ucenjivanje glasanjem u javnom preduzeću", summary: "" }, { tier: "rs-alt" }), "jp");
+    console.assert(relevant({ title: "Profesor smenjen zbog podrške studentima", summary: "" }, { tier: "rs-alt" }), "prof");
     console.assert(classify({ title: "Predsedništvo krije koga je Vučić pomilovao", summary: "" }) === "pardon");
     console.assert(classify({ title: "Radar: Oskar i Čvarak u Skaj prepisci Šarića", summary: "" }) === "sky");
     console.assert(skyHit("Edo Stefanović Skaj Markus"));
