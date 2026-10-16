@@ -6,8 +6,13 @@ import { loadDisabled, saveDisabled, addDrop, undrop, parseCommand, buildDropTex
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SENT = join(ROOT, "data/sent.json");
-const MAX_NEWS = Number(process.env.MAX_NEWS || 32);
+const MAX_SEC = Number(process.env.MAX_SEC || 20);
 const PER_SRC = Number(process.env.PER_SRC || 2);
+const SECTIONS = [
+  ["rs", "Domaći mediji"],
+  ["region", "Region"],
+  ["intl", "Svetski"],
+];
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -27,7 +32,7 @@ function loadSent() {
 
 function saveSent(set) {
   mkdirSync(join(ROOT, "data"), { recursive: true });
-  writeFileSync(SENT, JSON.stringify({ links: [...set].slice(-800) }));
+  writeFileSync(SENT, JSON.stringify({ links: [...set].slice(-2500) }));
 }
 
 function normTitle(t) {
@@ -44,37 +49,38 @@ function bucket(it) {
   return "rs";
 }
 
-export function pickFresh(items, sent, blocked, max = MAX_NEWS, perSrc = PER_SRC) {
+function pickList(cands, max, perSrc) {
+  const nSrc = Object.create(null);
+  const used = new Set();
+  const out = [];
+  let cap = perSrc;
+  while (out.length < max && used.size < cands.length) {
+    const it = cands.find((x) => !used.has(x.link) && (nSrc[x.source] || 0) < cap);
+    if (!it) {
+      cap++;
+      continue;
+    }
+    used.add(it.link);
+    nSrc[it.source] = (nSrc[it.source] || 0) + 1;
+    out.push(it);
+  }
+  return out;
+}
+
+export function pickFresh(items, sent, blocked, max = MAX_SEC, perSrc = PER_SRC) {
   const seenTitle = new Set();
-  const cands = [];
+  const bins = { rs: [], region: [], intl: [] };
   for (const it of items || []) {
     if (!it.link || sent.has(it.link) || blocked.has(it.source)) continue;
     const nt = normTitle(it.title || "");
     if (!nt || seenTitle.has(nt)) continue;
     seenTitle.add(nt);
-    cands.push(it);
+    bins[bucket(it)].push(it);
   }
-  const bins = { rs: [], region: [], intl: [] };
-  for (const it of cands) bins[bucket(it)].push(it);
-  const nSrc = Object.create(null);
-  const used = new Set();
-  const out = [];
-  const order = ["rs", "region", "intl"];
-  let cap = perSrc;
-  while (out.length < max && used.size < cands.length) {
-    let added = 0;
-    for (const k of order) {
-      const it = bins[k].find((x) => !used.has(x.link) && (nSrc[x.source] || 0) < cap);
-      if (!it) continue;
-      used.add(it.link);
-      nSrc[it.source] = (nSrc[it.source] || 0) + 1;
-      out.push(it);
-      added++;
-      if (out.length >= max) break;
-    }
-    if (!added) cap++;
-  }
-  return out;
+  const rs = pickList(bins.rs, max, perSrc);
+  const region = pickList(bins.region, max, perSrc);
+  const intl = pickList(bins.intl, max, perSrc);
+  return { rs, region, intl, all: [...rs, ...region, ...intl] };
 }
 
 function chunkLines(lines, max = 3500) {
@@ -96,16 +102,18 @@ function chunkLines(lines, max = 3500) {
 
 export function buildMessages(digest, sent) {
   const blocked = new Set(digest.disabled || []);
-  const fresh = pickFresh(digest.items, sent, blocked);
+  const picked = pickFresh(digest.items, sent, blocked);
   const msgs = [];
   for (const d of digest.drops || []) {
     msgs.push(buildDropText(d, labelsFor(d.ids)));
   }
-  if (fresh.length) {
-    const lines = fresh.map((it) => `${srcLabel(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`);
+  for (const [key, title] of SECTIONS) {
+    const items = picked[key];
+    if (!items.length) continue;
+    const lines = [`<b>${title}</b>`, ...items.map((it) => `${srcLabel(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`)];
     msgs.push(...chunkLines(lines));
   }
-  return { msgs, fresh };
+  return { msgs, fresh: picked.all };
 }
 
 async function sendTelegram(text, chatId) {
@@ -189,7 +197,7 @@ async function main() {
     );
     console.assert(fresh.length === 1 && fresh[0].source === "vreme", fresh);
     console.assert(msgs[0].includes("Nova.rs") && msgs[0].includes("https://d/1"), msgs[0]);
-    console.assert(msgs[1].includes("Vreme:"), msgs[1]);
+    if (!msgs[1].includes("Domaći mediji") || !msgs[1].includes("Vreme:")) throw new Error("section");
     const mix = pickFresh(
       [
         ...[1, 2, 3, 4, 5].map((i) => ({ source: "danas", sourceName: "Danas", tier: "rs-alt", title: `RS ${i}`, link: `https://d/${i}` })),
@@ -198,11 +206,10 @@ async function main() {
       ],
       new Set(),
       new Set(),
-      6,
+      20,
       2,
     );
-    if (mix.slice(0, 4).filter((x) => x.source === "danas").length !== 2) throw new Error("per-src");
-    if (!mix.some((x) => x.source === "index-hr") || !mix.some((x) => x.source === "bbc-sr")) throw new Error("mix");
+    if (mix.rs.length !== 5 || mix.region.length !== 1 || mix.intl.length !== 1) throw new Error("sections");
     const { msgs: m2 } = buildMessages(
       { items: [{ source: "nova", sourceName: "Nova.rs", title: "T", link: "https://n/2" }] },
       new Set(),
