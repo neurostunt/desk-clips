@@ -7,6 +7,7 @@ import { loadDisabled, saveDisabled, addDrop, detectHardKill, detectRepeatDead, 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const NOISE = /\/sport|\/zabava|\/showbiz|\/magazin|\/auto\/|evrolig|super lig/i;
+const PRI_PATH = /izbori26|izbori-2026|\/izbori\/|\/tag\/izbori/i;
 const RS =
   /vu[cč]i[cć]|\bsns\b|sns-[aeou]|napredn[aei] strank|izbori|izbora|izbore|izborn|vanredn|predizborn|parlamentarn|bira[cč]|birali[sš]t|glasaj|glasanj|posmatra[cč]|studentsk|studenti|demonstracij|prosvjed|protest|miting|gu[sš]enj|cenzur|alpac|alpak|united cloud|tatalov|[sš]ovljansk|nova\.rs|novars|\bnova s\b|novi sad|novog sada|novom sadu|\bn1\b|n1info|studentska lista|izborna kra[dđ]|nadstre[sš]nic|general[sš]tab|pomilova|odihr|nepravilnost|brutaln|prebij|pendrek|vodeni top|gumen|kordon|hapšenj|vanredno stanje|policijski čas|izborni turiz|fiktivn\w* bira|bira[cč]ki (spisak|odbor)|privo[dđ]en|pretres|šok bomb|gašenje internet|blokada mrež|1\. ?novembar|[zž]elezni[cč]k\w* stanic|u blokadi/i;
 const FOREIGN =
@@ -222,6 +223,11 @@ async function main() {
     console.assert(a.some((x) => x.id === "skew_praise"));
     console.assert(a.some((x) => x.id === "feed_dead"));
     console.assert(a.some((x) => x.id === "drop_protest"));
+    const ranked = [
+      { pri: false, ts: 9, link: "new" },
+      { pri: true, ts: 1, link: "pri" },
+    ].sort((x, y) => Number(y.pri) - Number(x.pri) || y.ts - x.ts);
+    console.assert(ranked[0].link === "pri");
     console.log("selftest ok");
     return;
   }
@@ -235,38 +241,42 @@ async function main() {
   for (const src of cfg.sources) {
     if (skip.has(src.id)) continue;
     const urls = Array.isArray(src.rss) ? src.rss : [src.rss];
-    for (const url of urls) jobs.push({ src, url });
+    for (const url of urls) jobs.push({ src, url, pri: false });
+    for (const url of src.priRss || []) jobs.push({ src, url, pri: true });
   }
 
   const errors = [];
   const items = [];
-  await pool(jobs, 8, async ({ src, url }) => {
+  await pool(jobs, 8, async ({ src, url, pri }) => {
     try {
       const { ok, status, text, cf } = await fetchRss(url);
       if (!ok) {
-        errors.push({ id: src.id, status, cf: !!cf, url });
+        if (!pri) errors.push({ id: src.id, status, cf: !!cf, url });
         return;
       }
       for (const it of parseFeed(text)) {
-        if (!relevant(it, src)) continue;
+        const blob = `${it.title} ${it.summary} ${it.link}`;
+        if (NOISE.test(blob)) continue;
+        if (!pri && !relevant(it, src)) continue;
         const ts = it.date ? Date.parse(it.date) : NaN;
         if (!Number.isNaN(ts) && ts < cutoff) continue;
         const tag = classify(it);
-        items.push({ ...it, source: src.id, sourceName: src.name, tier: src.tier, country: src.country, ts: Number.isNaN(ts) ? 0 : ts, tag });
+        const fromPri = pri || PRI_PATH.test(it.link || "");
+        items.push({ ...it, source: src.id, sourceName: src.name, tier: src.tier, country: src.country, ts: Number.isNaN(ts) ? 0 : ts, tag, pri: fromPri });
       }
     } catch (e) {
-      errors.push({ id: src.id, err: String(e.message || e).slice(0, 120), url });
+      if (!pri) errors.push({ id: src.id, err: String(e.message || e).slice(0, 120), url });
     }
   });
 
-  items.sort((a, b) => b.ts - a.ts);
-  const seen = new Set();
-  const uniq = items.filter((it) => {
+  const byKey = new Map();
+  for (const it of items) {
     const k = it.link || it.title;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+    const old = byKey.get(k);
+    if (!old) byKey.set(k, it);
+    else if (it.pri) old.pri = true;
+  }
+  const uniq = [...byKey.values()].sort((a, b) => Number(b.pri) - Number(a.pri) || b.ts - a.ts);
 
   const watch = tally(uniq.filter((i) => i.tier === "watch"));
   const alt = tally(uniq.filter((i) => i.tier !== "watch" && i.tier !== "official"));

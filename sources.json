@@ -1,18 +1,18 @@
 {
   "sources": [
-    {"id": "cins", "name": "CINS", "tier": "rs-alt", "country": "RS", "rss": "https://www.cins.rs/feed/"},
+    {"id": "cins", "name": "CINS", "tier": "rs-alt", "country": "RS", "rss": "https://www.cins.rs/feed/", "priRss": ["https://www.cins.rs/tag/izbori/feed/"]},
     {"id": "krik", "name": "KRIK", "tier": "rs-alt", "country": "RS", "rss": "https://www.krik.rs/feed/"},
-    {"id": "istinomer", "name": "Istinomer", "tier": "rs-alt", "country": "RS", "rss": "https://www.istinomer.rs/feed/"},
+    {"id": "istinomer", "name": "Istinomer", "tier": "rs-alt", "country": "RS", "rss": "https://www.istinomer.rs/feed/", "priRss": ["https://www.istinomer.rs/tag/izbori-2026/feed/"]},
     {"id": "crta", "name": "CRTA", "tier": "rs-alt", "country": "RS", "rss": "https://crta.rs/feed/"},
-    {"id": "cesid", "name": "CeSID", "tier": "rs-alt", "country": "RS", "rss": "https://www.cesid.rs/feed/"},
-    {"id": "cenzolovka", "name": "Cenzolovka", "tier": "rs-alt", "country": "RS", "rss": "https://www.cenzolovka.rs/feed/"},
-    {"id": "vreme", "name": "Vreme", "tier": "rs-alt", "country": "RS", "rss": "https://vreme.com/feed/"},
-    {"id": "danas", "name": "Danas", "tier": "rs-alt", "country": "RS", "rss": "https://www.danas.rs/feed/"},
-    {"id": "autonomija", "name": "Autonomija", "tier": "rs-alt", "country": "RS", "rss": "https://www.autonomija.info/feed/"},
-    {"id": "voice", "name": "VOICE", "tier": "rs-alt", "country": "RS", "rss": "https://voice.org.rs/feed/"},
-    {"id": "masina", "name": "Mašina", "tier": "rs-alt", "country": "RS", "rss": "https://www.masina.rs/feed/"},
+    {"id": "cesid", "name": "CeSID", "tier": "rs-alt", "country": "RS", "rss": "https://www.cesid.rs/feed/", "priRss": ["https://www.cesid.rs/tag/izbori/feed/"]},
+    {"id": "cenzolovka", "name": "Cenzolovka", "tier": "rs-alt", "country": "RS", "rss": "https://www.cenzolovka.rs/feed/", "priRss": ["https://www.cenzolovka.rs/tag/izbori/feed/"]},
+    {"id": "vreme", "name": "Vreme", "tier": "rs-alt", "country": "RS", "rss": "https://vreme.com/feed/", "priRss": ["https://vreme.com/tag/izbori-2026/feed/"]},
+    {"id": "danas", "name": "Danas", "tier": "rs-alt", "country": "RS", "rss": "https://www.danas.rs/feed/", "priRss": ["https://www.danas.rs/rubrika/vesti/politika/izbori26/feed/"]},
+    {"id": "autonomija", "name": "Autonomija", "tier": "rs-alt", "country": "RS", "rss": "https://www.autonomija.info/feed/", "priRss": ["https://www.autonomija.info/tag/izbori/feed/"]},
+    {"id": "voice", "name": "VOICE", "tier": "rs-alt", "country": "RS", "rss": "https://voice.org.rs/feed/", "priRss": ["https://voice.org.rs/tag/izbori/feed/"]},
+    {"id": "masina", "name": "Mašina", "tier": "rs-alt", "country": "RS", "rss": "https://www.masina.rs/feed/", "priRss": ["https://www.masina.rs/tag/izbori-2026/feed/"]},
     {"id": "pescanik", "name": "Peščanik", "tier": "rs-alt", "country": "RS", "rss": "https://pescanik.net/feed/"},
-    {"id": "nuns", "name": "NUNS", "tier": "rs-alt", "country": "RS", "rss": "https://nuns.rs/feed/"},
+    {"id": "nuns", "name": "NUNS", "tier": "rs-alt", "country": "RS", "rss": "https://nuns.rs/feed/", "priRss": ["https://nuns.rs/tag/izbori/feed/"]},
     {"id": "insajder", "name": "Insajder", "tier": "rs-alt", "country": "RS", "rss": "https://insajder.net/feed/"},
     {"id": "juznevesti", "name": "Južne vesti", "tier": "rs-alt", "country": "RS", "rss": ["https://www.juznevesti.com/feed/", "https://www.juznevesti.com/politika/feed/", "https://www.juznevesti.com/drustvo/feed/"]},
     {"id": "rik", "name": "RIK", "tier": "official", "country": "RS", "rss": "https://www.rik.parlament.gov.rs/rss"},
@@ -49,8 +49,8 @@
     {"id": "hrw", "name": "Human Rights Watch", "tier": "intl", "country": "INT", "rss": "https://www.hrw.org/rss/news"},
     {"id": "amnesty", "name": "Amnesty", "tier": "intl", "country": "INT", "rss": "https://www.amnesty.org/en/feed/"},
 
-    {"id": "n1-rs", "name": "N1", "tier": "watch", "country": "RS", "rss": ["https://n1info.rs/feed/", "https://n1info.rs/vesti/feed/"]},
-    {"id": "nova", "name": "Nova.rs", "tier": "watch", "country": "RS", "rss": ["https://nova.rs/feed/", "https://nova.rs/vesti/politika/feed/", "https://nova.rs/vesti/drustvo/feed/"]},
+    {"id": "n1-rs", "name": "N1", "tier": "watch", "country": "RS", "rss": ["https://n1info.rs/feed/", "https://n1info.rs/vesti/feed/"], "priRss": ["https://n1info.rs/tag/izbori-2026/feed/"]},
+    {"id": "nova", "name": "Nova.rs", "tier": "watch", "country": "RS", "rss": ["https://nova.rs/feed/", "https://nova.rs/vesti/politika/feed/", "https://nova.rs/vesti/drustvo/feed/"], "priRss": ["https://nova.rs/tag/izbori-2026/feed/"]},
     {"id": "radar", "name": "Radar", "tier": "watch", "country": "RS", "rss": "https://radar.nova.rs/feed/"}
   ]
 }
