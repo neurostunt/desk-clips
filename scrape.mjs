@@ -7,15 +7,20 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const NOISE = /\/sport|\/zabava|\/showbiz|\/magazin|\/auto\/|evrolig|super lig/i;
 const RS =
-  /vu[cč]i[cć]|\bsns\b|izbori|izbora|izbore|izborn|vanredn|predizborn|parlamentarn|bira[cč]|studentsk|studenti|demonstracij|prosvjed|protest|gu[sš]enj|cenzur|alpac|united cloud|tatalov|[sš]ovljansk|nova\.rs|novars|novi sad|\bn1\b|n1info|studentska lista|izborna kra[dđ]|bira[cč]k/i;
+  /vu[cč]i[cć]|\bsns\b|sns-[aeou]|napredn[aei] strank|izbori|izbora|izbore|izborn|vanredn|predizborn|parlamentarn|bira[cč]|birali[sš]t|glasaj|glasanj|posmatra[cč]|studentsk|studenti|demonstracij|prosvjed|protest|miting|gu[sš]enj|cenzur|alpac|alpak|united cloud|tatalov|[sš]ovljansk|nova\.rs|novars|\bnova s\b|novi sad|novog sada|novom sadu|\bn1\b|n1info|studentska lista|izborna kra[dđ]|nadstre[sš]nic|general[sš]tab|pomilova|odihr|nepravilnost/i;
 const FOREIGN =
-  /srbij|serbia|serbian|vu[cč]i[cć]|vucic|beograd|belgrade|novi ?sad|srpski|\bn1\b|nova\.rs|alpac|united (?:cloud|group)|studentska lista|student list|snap election|early (?:parliamentary )?election|media crackdown|press freedom|newsroom.{0,40}serbia|serbia.{0,40}(protest|riot|election|media|censor)|belgrade.{0,40}(protest|demonstrat|clash|riot|tear ?gas)|demonstracij.{0,40}beograd|beograd.{0,40}(demonstracij|protest|blokad|nered)/i;
+  /srbij|serbia|serbian|vu[cč]i[cć]|vucic|beograd|belgrade|novi ?sad|novog sada|novom sadu|srpski|\bn1\b|nova\.rs|alpac|alpak|united (?:cloud|group)|studentska lista|student list|snap election|early (?:parliamentary )?election|election night|polling station|media crackdown|press freedom|newsroom.{0,40}serbia|serbia.{0,40}(protest|riot|election|media|censor)|belgrade.{0,40}(protest|demonstrat|clash|riot|tear ?gas)|demonstracij.{0,40}beograd|beograd.{0,40}(demonstracij|protest|blokad|nered)|canopy|railway station.{0,20}novi|pardon.{0,30}serbia|serbia.{0,30}pardon/i;
 const PROTEST =
-  /studentsk|studenti|student list|studentska lista|protest|demonstracij|prosvjed|[sš]etnj|blokad|[cć]acilend|[cć]aci.?lend|nadstre[sš]nic|plenum|napadnut|suzavac|tear ?gas|riot police|[zž]andarm|nered|clash(?:es)? in belgrade|belgrade protest/i;
+  /studentsk|studenti|student list|studentska lista|protest|demonstracij|prosvjed|[sš]etnj|blokad|[cć]acilend|[cć]aci.?lend|nadstre[sš]nic|plenum|napadnut|odguri|suzavac|tear ?gas|riot police|[zž]andarm|nered|miting|batina|obezbe[dđ]enj|clash(?:es)? in belgrade|belgrade protest|izborn[aeo].{0,12}(dan|no[cć]|nepravil)/i;
 const MEDIA =
-  /gu[sš]enj.{0,25}medij|cenzur|united cloud|alpac|otkaz.{0,30}novinar|novinar.{0,30}otkaz|press freedom|media crackdown|slobod[ae] (?:medij|štamp|stampe)|cms.{0,20}(admin|nalog|pristup)/i;
+  /gu[sš]enj.{0,25}medij|cenzur|united cloud|alpac|alpak|otkaz.{0,30}novinar|novinar.{0,30}(otkaz|spre[cč]|napad|pretnj|incident)|spre[cč]en.{0,20}novinar|press freedom|media crackdown|slobod[aeu] medij|redakcij|ure[dđ]iva[cč]k|ultimatu|otpremnin|akreditacij|\brem\b|nuns/i;
 const PRAISE =
-  /vu[cč]i[cć] poru[cč]|sns skup|miting sns|predizborni (skup|miting)|pobeda sns|svi kao jedan|stabiln(ost|a srbij)|ogromn[ae] podr[sš]k/i;
+  /vu[cč]i[cć] poru[cč]|sns skup|miting sns|predizborni (skup|miting)|pobeda sns|svi kao jedan|stabiln(ost|a srbij)|ogromn[ae] podr[sš]k|srpske napredne/i;
+const SKYCHAT = /skaj|sky ?ecc|encrochat/i;
+const SKYPOL =
+  /\boskar\b|[cč]varak|\bedo\b|markus|stefanovi[cć]|parezanovi[cć]|[sš]ari[cć]|belivuk|jovanjica|pandrc|uliks/i;
+const PARDON =
+  /pomilova|koga je pomilov|(pardon|clemency).{0,40}(serbia|vu[cč]i[cć]|vucic)|(serbia|vu[cč]i[cć]|vucic).{0,40}(pardon|clemency)/i;
 
 function decode(s) {
   return s
@@ -55,16 +60,24 @@ export function parseFeed(xml) {
   return out;
 }
 
+function skyHit(blob) {
+  return SKYCHAT.test(blob) && SKYPOL.test(blob);
+}
+
 function relevant(item, src) {
   const blob = `${item.title} ${item.summary}`;
   if (NOISE.test(`${blob} ${item.link}`)) return false;
+  if (skyHit(blob)) return true;
   if (src.tier === "official") return true;
+  if (PARDON.test(blob)) return true;
   if (src.tier === "rs-alt" || src.tier === "watch") return RS.test(blob);
   return FOREIGN.test(blob);
 }
 
 export function classify(item) {
   const blob = `${item.title} ${item.summary || ""}`;
+  if (skyHit(blob)) return "sky";
+  if (PARDON.test(blob)) return "pardon";
   if (PROTEST.test(blob)) return "protest";
   if (MEDIA.test(blob)) return "media";
   if (PRAISE.test(blob)) return "praise";
@@ -72,7 +85,7 @@ export function classify(item) {
 }
 
 function tally(items) {
-  const t = { n: items.length, protest: 0, praise: 0, media: 0, other: 0 };
+  const t = { n: items.length, protest: 0, praise: 0, media: 0, sky: 0, pardon: 0, other: 0 };
   for (const it of items) t[it.tag] = (t[it.tag] || 0) + 1;
   return t;
 }
@@ -142,7 +155,7 @@ function md(items, stats, alerts) {
       lines.push(`## ${it.sourceName} (${it.tier})`);
       last = it.source;
     }
-    const mark = it.tag === "protest" ? "P" : it.tag === "praise" ? "R" : it.tag === "media" ? "M" : "·";
+    const mark = it.tag === "protest" ? "P" : it.tag === "praise" ? "R" : it.tag === "media" ? "M" : it.tag === "sky" ? "S" : it.tag === "pardon" ? "F" : "·";
     lines.push(`- [${mark}] ${it.date || "?"} — [${it.title}](${it.link})`);
   }
   return lines.join("\n");
@@ -179,6 +192,15 @@ async function main() {
     console.assert(relevant({ title: "Demonstracije u Beogradu", summary: "" }, { tier: "region-hr" }), "bg demo");
     console.assert(relevant({ title: "Serbia snap parliamentary elections", summary: "" }, { tier: "intl" }), "en elect");
     console.assert(relevant({ title: "Media crackdown in Serbia newsrooms", summary: "" }, { tier: "intl" }), "en media");
+    console.assert(relevant({ title: "Smeće u centru Novog Sada nakon mitinga", summary: "" }, { tier: "rs-alt" }), "ns pad");
+    console.assert(relevant({ title: "Pomilovani osumnjičeni za pad nadstrešnice i Generalštab", summary: "" }, { tier: "rs-alt" }), "canopy");
+    console.assert(classify({ title: "Novinari sprečeni da izveštavaju sa skupova SNS-a", summary: "" }) === "media");
+    console.assert(classify({ title: "Miting SNS-a u Novom Sadu", summary: "" }) === "protest");
+    console.assert(classify({ title: "Predsedništvo krije koga je Vučić pomilovao", summary: "" }) === "pardon");
+    console.assert(classify({ title: "Radar: Oskar i Čvarak u Skaj prepisci Šarića", summary: "" }) === "sky");
+    console.assert(skyHit("Edo Stefanović Skaj Markus"));
+    console.assert(!skyHit("Oscar film awards"));
+    console.assert(classify({ title: "Oscar film awards", summary: "" }) !== "sky");
     const a = detectAlerts({
       watch: { n: 10, protest: 0, praise: 5 },
       alt: { n: 12, protest: 4, praise: 0 },
@@ -242,7 +264,7 @@ async function main() {
   const payload = { generated: snap.t, hours, count: uniq.length, watch, alt, alerts, errors, items: uniq };
   writeFileSync(join(ROOT, "data/digest.json"), JSON.stringify(payload, null, 2));
   writeFileSync(join(ROOT, "data/alerts.json"), JSON.stringify({ generated: snap.t, alerts, watch, alt, errors }, null, 2));
-  const stats = `n=${uniq.length} a=${alerts.length} e=${errors.length} ${hours}h`;
+  const stats = `n=${uniq.length} a=${alerts.length} e=${errors.length} s=${watch.sky + alt.sky} ${hours}h`;
   writeFileSync(join(ROOT, "data/digest.md"), md(uniq, stats, alerts));
   console.log(stats);
   if (process.env.VERBOSE) {

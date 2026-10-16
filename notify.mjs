@@ -33,10 +33,10 @@ export function buildMessages(digest, sent) {
     msgs.push(`note\n${head}\n${alerts.map((a) => `• ${esc(a.msg)}`).join("\n")}`);
   }
 
-  const fresh = items.filter((it) => (it.tag === "protest" || it.tag === "media") && it.link && !sent.has(it.link)).slice(0, MAX_NEWS);
+  const fresh = items.filter((it) => /^(protest|media|sky|pardon)$/.test(it.tag) && it.link && !sent.has(it.link)).slice(0, MAX_NEWS);
   if (fresh.length) {
     const lines = fresh.map((it) => {
-      const mark = it.tag === "protest" ? "P" : "M";
+      const mark = it.tag === "protest" ? "P" : it.tag === "sky" ? "S" : it.tag === "pardon" ? "F" : "M";
       return `[${mark}] ${esc(it.sourceName)}: <a href="${esc(it.link)}">${esc(it.title.slice(0, 160))}</a>`;
     });
     msgs.push(`${alerts.length ? "Novo P/M\n" : head + "\n"}${lines.join("\n")}`);
