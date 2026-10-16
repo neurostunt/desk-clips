@@ -17,6 +17,8 @@ jobs:
           path: |
             data/sent.json
             data/history.jsonl
+            data/disabled.json
+            data/tg-offset.json
           key: clips-state-${{ github.run_id }}
           restore-keys: clips-state-
       - name: scrape
@@ -28,3 +30,4 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}

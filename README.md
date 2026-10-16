@@ -61,4 +61,21 @@ Kanal → slika profila → **Invite link**. Taj link šalješ. Kad treba da pre
 
 ---
 
-Lokalno (ako GitHub stane): `node scrape.mjs && node notify.mjs` uz ista dva env imena.
+### 6. Admin komande (opciono)
+
+Treći secret: `TELEGRAM_ADMIN_ID` = tvoj Telegram user id (broj).  
+Botu **u privatnoj poruci** (ne u kanal) pišeš:
+
+- `/drop n1` — prestaje N1, alert na kanal
+- `/drop nova` — Nova.rs + Radar
+- `/drop watch` — oba
+- `/undrop n1` ili `/undrop nova`
+- `/status`
+
+User id: piši botu `ping`, pa u browseru ista `getUpdates` adresa — `"from":{"id": BROJ`.
+
+Auto: N1/Nova se gasi samo ako **dva različita izvora** jave blokadu/cenzuru, ili RSS padne **dve runde zaredom**. Otkaz novinara sam ne gasi izvor.
+
+---
+
+Lokalno (ako GitHub stane): `node scrape.mjs && node notify.mjs` uz ista env imena.

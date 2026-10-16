@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { loadDisabled, saveDisabled, addDrop, undrop, parseCommand, buildDropText, labelsFor } from "./guard.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SENT = join(ROOT, "data/sent.json");
@@ -33,24 +34,30 @@ function normTitle(t) {
 }
 
 export function buildMessages(digest, sent) {
+  const blocked = new Set(digest.disabled || []);
   const seenTitle = new Set();
   const fresh = [];
   for (const it of digest.items || []) {
-    if (!it.link || sent.has(it.link)) continue;
+    if (!it.link || sent.has(it.link) || blocked.has(it.source)) continue;
     const nt = normTitle(it.title || "");
     if (!nt || seenTitle.has(nt)) continue;
     seenTitle.add(nt);
     fresh.push(it);
     if (fresh.length >= MAX_NEWS) break;
   }
-  if (!fresh.length) return { msgs: [], fresh };
-  const lines = fresh.map((it) => `${esc(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`);
-  return { msgs: [lines.join("\n")], fresh };
+  const msgs = [];
+  for (const d of digest.drops || []) {
+    msgs.push(buildDropText(d, labelsFor(d.ids)));
+  }
+  if (fresh.length) {
+    msgs.push(fresh.map((it) => `${esc(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`).join("\n"));
+  }
+  return { msgs, fresh };
 }
 
-async function sendTelegram(text) {
+async function sendTelegram(text, chatId) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chat = process.env.TELEGRAM_CHAT_ID;
+  const chat = chatId || process.env.TELEGRAM_CHAT_ID;
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -65,20 +72,71 @@ async function sendTelegram(text) {
   if (!j.ok) throw new Error(j.description || r.status);
 }
 
+async function pollCommands() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const admin = process.env.TELEGRAM_ADMIN_ID;
+  if (!token || !admin) return [];
+  const offP = join(ROOT, "data/tg-offset.json");
+  let offset = 0;
+  try {
+    offset = JSON.parse(readFileSync(offP, "utf8")).offset || 0;
+  } catch {}
+  const r = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${offset}&timeout=0`);
+  const j = await r.json();
+  if (!j.ok) return [];
+  const out = [];
+  let max = offset;
+  let disabled = loadDisabled(ROOT);
+  for (const u of j.result || []) {
+    max = Math.max(max, (u.update_id || 0) + 1);
+    const msg = u.message;
+    if (!msg?.text) continue;
+    if (String(msg.from?.id) !== String(admin)) continue;
+    const p = parseCommand(msg.text);
+    if (!p) continue;
+    const reply = msg.chat.id;
+    if (p.cmd === "status") {
+      out.push({ chat: reply, text: `off: ${disabled.ids.join(", ") || "ništa"}` });
+      continue;
+    }
+    if (p.cmd === "bad") {
+      out.push({ chat: reply, text: "/drop n1 | /drop nova | /drop watch\n/undrop n1 | /undrop nova | /status" });
+      continue;
+    }
+    if (p.cmd === "drop") {
+      const { state, added } = addDrop(disabled, p.ids, "admin", "cmd");
+      disabled = state;
+      saveDisabled(ROOT, disabled);
+      out.push({ chat: reply, text: added.length ? `drop ${added.join(", ")}` : "već off" });
+      if (added.length) out.push({ channel: true, drop: { ids: added, via: "cmd", items: [] } });
+    }
+    if (p.cmd === "undrop") {
+      disabled = undrop(disabled, p.ids);
+      saveDisabled(ROOT, disabled);
+      out.push({ chat: reply, text: `undrop ${p.ids.join(", ")}` });
+    }
+  }
+  mkdirSync(join(ROOT, "data"), { recursive: true });
+  writeFileSync(offP, JSON.stringify({ offset: max }));
+  return out;
+}
+
 async function main() {
   if (process.argv.includes("--selftest")) {
     const { msgs, fresh } = buildMessages(
       {
+        disabled: ["nova"],
+        drops: [{ ids: ["nova", "radar"], via: "news", items: [{ sourceName: "Danas", title: "Nova.rs ugašen", link: "https://d/1" }] }],
         items: [
-          { tag: "other", sourceName: "Vreme", title: "Studenti Beograd", link: "https://x/1" },
-          { tag: "protest", sourceName: "Danas", title: "(FOTO) Studenti Beograd", link: "https://x/2" },
+          { source: "vreme", sourceName: "Vreme", title: "Studenti Beograd", link: "https://x/1" },
+          { source: "nova", sourceName: "Nova.rs", title: "X", link: "https://n/1" },
         ],
       },
       new Set(),
     );
-    console.assert(fresh.length === 1, fresh.length);
-    console.assert(msgs.length === 1 && msgs[0].includes("Vreme:") && msgs[0].includes("<a href="), msgs[0]);
-    console.assert(!msgs[0].includes("[P]"), msgs[0]);
+    console.assert(fresh.length === 1 && fresh[0].source === "vreme", fresh);
+    console.assert(msgs[0].includes("Nova.rs") && msgs[0].includes("https://d/1"), msgs[0]);
+    console.assert(msgs[1].includes("Vreme:"), msgs[1]);
     console.log("selftest ok");
     return;
   }
@@ -89,7 +147,14 @@ async function main() {
     console.log("skip notify: nema TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID");
     return;
   }
+
+  const cmds = await pollCommands();
   const digest = JSON.parse(readFileSync(join(ROOT, "data/digest.json"), "utf8"));
+  for (const c of cmds) {
+    if (c.drop) digest.drops = [...(digest.drops || []), c.drop];
+    else if (c.text) await sendTelegram(c.text.replace(/&/g, "&amp;"), c.chat);
+  }
+
   const sent = loadSent();
   const { msgs, fresh } = buildMessages(digest, sent);
   if (!msgs.length) {
@@ -99,7 +164,7 @@ async function main() {
   for (const m of msgs) await sendTelegram(m);
   for (const it of fresh) sent.add(it.link);
   saveSent(sent);
-  console.log(`poslato ${fresh.length}`);
+  console.log(`poslato ${msgs.length} poruka, ${fresh.length} vesti`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

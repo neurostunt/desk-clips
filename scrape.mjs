@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { loadDisabled, saveDisabled, addDrop, detectHardKill, detectRepeatDead, ALIAS } from "./guard.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -228,8 +229,11 @@ async function main() {
   const cfg = JSON.parse(readFileSync(join(ROOT, "sources.json"), "utf8"));
   const hours = Number(process.env.HOURS || 72);
   const cutoff = Date.now() - hours * 3600 * 1000;
+  let disabled = loadDisabled(ROOT);
+  const skip = new Set(disabled.ids);
   const jobs = [];
   for (const src of cfg.sources) {
+    if (skip.has(src.id)) continue;
     const urls = Array.isArray(src.rss) ? src.rss : [src.rss];
     for (const url of urls) jobs.push({ src, url });
   }
@@ -266,16 +270,29 @@ async function main() {
 
   const watch = tally(uniq.filter((i) => i.tier === "watch"));
   const alt = tally(uniq.filter((i) => i.tier !== "watch" && i.tier !== "official"));
-  const alerts = detectAlerts({ watch, alt, errors, prev: lastHistory() });
+  const prev = lastHistory();
+  const alerts = detectAlerts({ watch, alt, errors, prev });
+  const deadNow = [...new Set(errors.filter((e) => e.id === "n1-rs" || e.id === "nova").map((e) => e.id))];
+  const drops = [];
+  for (const hit of [...detectHardKill(uniq), ...detectRepeatDead(errors, prev?.dead)]) {
+    const ids = hit.id === "nova" ? ALIAS.nova : ALIAS.n1;
+    const { state, added } = addDrop(disabled, ids, hit.via === "rss" ? "rss-2x" : "hard-kill", hit.via);
+    if (!added.length) continue;
+    disabled = state;
+    drops.push({ ids: added, via: hit.via, items: (hit.items || []).map((i) => ({ sourceName: i.sourceName, title: i.title, link: i.link })) });
+  }
+  if (drops.length) saveDisabled(ROOT, disabled);
+  const blocked = new Set(disabled.ids);
+  const outItems = uniq.filter((i) => !blocked.has(i.source));
 
   mkdirSync(join(ROOT, "data"), { recursive: true });
-  const snap = { t: new Date().toISOString(), hours, watch, alt, alerts: alerts.map((a) => a.id) };
+  const snap = { t: new Date().toISOString(), hours, watch, alt, alerts: alerts.map((a) => a.id), dead: deadNow };
   appendFileSync(join(ROOT, "data/history.jsonl"), JSON.stringify(snap) + "\n");
-  const payload = { generated: snap.t, hours, count: uniq.length, watch, alt, alerts, errors, items: uniq };
+  const payload = { generated: snap.t, hours, count: outItems.length, watch, alt, alerts, errors, drops, disabled: disabled.ids, items: outItems };
   writeFileSync(join(ROOT, "data/digest.json"), JSON.stringify(payload, null, 2));
   writeFileSync(join(ROOT, "data/alerts.json"), JSON.stringify({ generated: snap.t, alerts, watch, alt, errors }, null, 2));
-  const stats = `n=${uniq.length} a=${alerts.length} e=${errors.length} s=${watch.sky + alt.sky} ${hours}h`;
-  writeFileSync(join(ROOT, "data/digest.md"), md(uniq, stats, alerts));
+  const stats = `n=${outItems.length} a=${alerts.length} e=${errors.length} d=${drops.length} ${hours}h`;
+  writeFileSync(join(ROOT, "data/digest.md"), md(outItems, stats, alerts));
   console.log(stats);
   if (process.env.VERBOSE) {
     for (const a of alerts) console.log("A", a.id);
