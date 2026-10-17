@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, appendFileSync, existsSync } fr
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadDisabled, saveDisabled, addDrop, detectHardKill, detectRepeatDead, ALIAS } from "./guard.mjs";
+import { fetchLiveRik } from "./rik.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -315,12 +316,13 @@ async function main() {
   const outItems = uniq.filter((i) => !blocked.has(i.source));
 
   mkdirSync(join(ROOT, "data"), { recursive: true });
+  const rik = await fetchLiveRik();
   const snap = { t: new Date().toISOString(), hours, watch, alt, alerts: alerts.map((a) => a.id), dead: deadNow };
   appendFileSync(join(ROOT, "data/history.jsonl"), JSON.stringify(snap) + "\n");
-  const payload = { generated: snap.t, hours, count: outItems.length, watch, alt, alerts, errors, drops, disabled: disabled.ids, items: outItems };
+  const payload = { generated: snap.t, hours, count: outItems.length, watch, alt, alerts, errors, drops, disabled: disabled.ids, rik, items: outItems };
   writeFileSync(join(ROOT, "data/digest.json"), JSON.stringify(payload, null, 2));
   writeFileSync(join(ROOT, "data/alerts.json"), JSON.stringify({ generated: snap.t, alerts, watch, alt, errors }, null, 2));
-  const stats = `n=${outItems.length} a=${alerts.length} e=${errors.length} d=${drops.length} ${hours}h`;
+  const stats = `n=${outItems.length} a=${alerts.length} e=${errors.length} d=${drops.length} rik=${rik ? rik.processed : "-"} ${hours}h`;
   writeFileSync(join(ROOT, "data/digest.md"), md(outItems, stats, alerts));
   console.log(stats);
   if (process.env.VERBOSE) {

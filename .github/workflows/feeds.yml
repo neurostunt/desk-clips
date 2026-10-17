@@ -17,6 +17,7 @@ jobs:
             data/history.jsonl
             data/disabled.json
             data/tg-offset.json
+            data/rik-last.json
           key: clips-state-${{ github.run_id }}
           restore-keys: clips-state-
       - name: scrape

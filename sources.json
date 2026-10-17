@@ -16,7 +16,6 @@
     {"id": "nuns", "name": "NUNS", "tier": "rs-alt", "country": "RS", "rss": "https://nuns.rs/feed/", "priRss": ["https://nuns.rs/tag/izbori/feed/"]},
     {"id": "insajder", "name": "Insajder", "tier": "rs-alt", "country": "RS", "rss": "https://insajder.net/feed/"},
     {"id": "juznevesti", "name": "Južne vesti", "tier": "rs-alt", "country": "RS", "rss": ["https://www.juznevesti.com/feed/", "https://www.juznevesti.com/politika/feed/", "https://www.juznevesti.com/drustvo/feed/"]},
-    {"id": "rik", "name": "RIK", "tier": "official", "country": "RS", "rss": "https://www.rik.parlament.gov.rs/rss"},
 
     {"id": "index-hr", "name": "Index.hr", "tier": "region-hr", "country": "HR", "rss": "https://www.index.hr/rss/vijesti"},
     {"id": "telegram-hr", "name": "Telegram.hr", "tier": "region-hr", "country": "HR", "rss": "https://www.telegram.hr/feed/"},

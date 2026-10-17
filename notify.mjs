@@ -3,9 +3,11 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadDisabled, saveDisabled, addDrop, undrop, parseCommand, buildDropText, labelsFor } from "./guard.mjs";
+import { formatRikHtml } from "./rik.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SENT = join(ROOT, "data/sent.json");
+const RIK_LAST = join(ROOT, "data/rik-last.json");
 const MAX_SEC = Number(process.env.MAX_SEC || 20);
 const PER_SRC = Number(process.env.PER_SRC || 2);
 const SECTIONS = [
@@ -100,10 +102,28 @@ function chunkLines(lines, max = 3500) {
   return msgs;
 }
 
-export function buildMessages(digest, sent) {
+function loadRikKey() {
+  try {
+    return JSON.parse(readFileSync(RIK_LAST, "utf8")).key || "";
+  } catch {
+    return "";
+  }
+}
+
+function saveRikKey(key) {
+  mkdirSync(join(ROOT, "data"), { recursive: true });
+  writeFileSync(RIK_LAST, JSON.stringify({ key }));
+}
+
+export function buildMessages(digest, sent, lastRikKey = "") {
   const blocked = new Set(digest.disabled || []);
   const picked = pickFresh(digest.items, sent, blocked);
   const msgs = [];
+  let rikKey = lastRikKey;
+  if (digest.rik?.key && digest.rik.key !== lastRikKey) {
+    msgs.push(formatRikHtml(digest.rik));
+    rikKey = digest.rik.key;
+  }
   for (const d of digest.drops || []) {
     msgs.push(buildDropText(d, labelsFor(d.ids)));
   }
@@ -113,7 +133,7 @@ export function buildMessages(digest, sent) {
     const lines = [`<b>${title}</b>`, ...items.map((it) => `${srcLabel(it.sourceName)}: <a href="${esc(it.link)}">${esc((it.title || "").slice(0, 180))}</a>`)];
     msgs.push(...chunkLines(lines));
   }
-  return { msgs, fresh: picked.all };
+  return { msgs, fresh: picked.all, rikKey };
 }
 
 async function sendTelegram(text, chatId) {
@@ -215,6 +235,27 @@ async function main() {
       new Set(),
     );
     if (!m2[0].includes("Nova.\u200brs:")) throw new Error("src zwsp");
+    const { msgs: m3, rikKey } = buildMessages(
+      {
+        rik: {
+          key: "t1|1|50",
+          title: "Parlamentarni 2026",
+          datetime: "25.10.2026 21:40:00",
+          total: "1",
+          out: "1",
+          stations: "10",
+          processed: "1",
+          turnout: 10,
+          lists: [{ name: "A", votes: "1", pct: 50 }],
+        },
+        items: [{ source: "vreme", sourceName: "Vreme", title: "Studenti Beograd", link: "https://x/9" }],
+      },
+      new Set(),
+      "",
+    );
+    if (!m3[0].includes("RIK") || !m3[1].includes("Domaći") || rikKey !== "t1|1|50") throw new Error("rik first");
+    const { msgs: m4 } = buildMessages({ rik: { key: "t1|1|50", title: "x", datetime: "t", total: "1", out: "1", stations: "1", processed: "1", turnout: 0, lists: [] }, items: [] }, new Set(), "t1|1|50");
+    if (m4.length) throw new Error("rik dup");
     console.log("selftest ok");
     return;
   }
@@ -234,7 +275,7 @@ async function main() {
   }
 
   const sent = loadSent();
-  const { msgs, fresh } = buildMessages(digest, sent);
+  const { msgs, fresh, rikKey } = buildMessages(digest, sent, loadRikKey());
   if (!msgs.length) {
     console.log("nema novih");
     return;
@@ -242,6 +283,7 @@ async function main() {
   for (const m of msgs) await sendTelegram(m);
   for (const it of fresh) sent.add(it.link);
   saveSent(sent);
+  if (rikKey) saveRikKey(rikKey);
   console.log(`poslato ${msgs.length} poruka, ${fresh.length} vesti`);
 }
 
